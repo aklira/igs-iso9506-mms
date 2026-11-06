@@ -382,7 +382,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | --- | --- |
 | P1 Free OSI texts | [x] |
 | P2 Presentation ASN.1 | [x] |
-| P3 MMS profile data | [ ] |
+| P3 MMS profile data | [x] |
 | P4 TASE.2 conformance data | [ ] |
 | F1 Workspace skeleton | [ ] |
 | F2 Continuous integration and ai-log | [ ] |
