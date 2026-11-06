@@ -387,7 +387,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | F1 Workspace skeleton | [x] |
 | F2 Continuous integration and ai-log | [x] |
 | F3 Codec approach | [x] |
-| F4 Code generation | [ ] |
+| F4 Code generation | [x] |
 | F5 Interop bench skeleton | [ ] |
 | C1 BER | [ ] |
 | C2 TPKT and COTP TPDUs | [ ] |

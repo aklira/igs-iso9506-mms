@@ -17,3 +17,9 @@
         clippy::arithmetic_side_effects
     )
 )]
+
+/// Code generated from the data files; see the banner of each file.
+pub mod generated;
+
+/// Vocabulary of the generated code.
+pub mod schema;
