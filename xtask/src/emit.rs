@@ -653,3 +653,67 @@ pub fn tables_txt(
     writeln!(o, "];")?;
     Ok(o)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MODULE: &str = "Test DEFINITIONS ::= BEGIN
+        Pick ::= CHOICE { a [0] BOOLEAN, ..., b [1] NULL, ..., c [2] NULL } -- note
+        Alias ::= Pick
+        Number ::= [APPLICATION 3] IMPLICIT INTEGER
+        low Number ::= 1
+        Record ::= SEQUENCE {
+            x [1] IMPLICIT Pick,
+            y [2] IMPLICIT Alias,
+            z [3] IMPLICIT INTEGER (0..7, ...) OPTIONAL,
+            w [4] IMPLICIT Number
+        }
+        END";
+
+    fn fixture() -> (Module, Conformance) {
+        let conformance = Conformance {
+            mms_services: Vec::new(),
+            mms_pdus: Vec::new(),
+        };
+        (Module::parse(MODULE).unwrap(), conformance)
+    }
+
+    #[test]
+    fn implicit_tag_on_a_choice_is_explicit() {
+        let (module, conformance) = fixture();
+        let modules = [module];
+        let generator = Generator::new(&modules, &conformance);
+        let Kind::Sequence(members) = modules[0].type_of("Record").unwrap().kind else {
+            panic!("not a sequence");
+        };
+        let tagging = |i: usize| {
+            let member: &Member = &members[i];
+            generator
+                .effective(member.ty.tag, &member.ty)
+                .unwrap()
+                .unwrap()
+                .tagging
+        };
+        assert_eq!(tagging(0), Tagging::Explicit);
+        assert_eq!(tagging(1), Tagging::Explicit);
+        assert_eq!(tagging(2), Tagging::Implicit);
+        assert_eq!(tagging(3), Tagging::Implicit);
+    }
+
+    #[test]
+    fn extension_markers_keep_all_alternatives() {
+        let (module, _) = fixture();
+        let Kind::Choice(members) = module.type_of("Pick").unwrap().kind else {
+            panic!("not a choice");
+        };
+        assert_eq!(members.len(), 3);
+    }
+
+    #[test]
+    fn value_assignments_are_not_types() {
+        let (module, _) = fixture();
+        assert_eq!(module.assignments.len(), 4);
+        assert!(!module.assignments.contains_key("low"));
+    }
+}
