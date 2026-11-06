@@ -380,7 +380,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 
 | Task | Status |
 | --- | --- |
-| P1 Free OSI texts | [ ] |
+| P1 Free OSI texts | [x] |
 | P2 Presentation ASN.1 | [x] |
 | P3 MMS profile data | [ ] |
 | P4 TASE.2 conformance data | [ ] |
