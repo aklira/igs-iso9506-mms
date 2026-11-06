@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 The igs-iso9506-mms contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+"""Thin wrapper over `docker compose` or `podman-compose` for the bench."""
+
+from __future__ import annotations
+
+import os
+import shlex
+import shutil
+import subprocess
+import time
+from pathlib import Path
+
+BENCH_DIR = Path(__file__).resolve().parent.parent
+PROJECT = "igsmmsbench"
+
+
+def _engine() -> list[str]:
+    """Compose command: $BENCH_COMPOSE, else docker compose, else podman-compose."""
+    override = os.environ.get("BENCH_COMPOSE")
+    if override:
+        return shlex.split(override)
+    if shutil.which("docker"):
+        return ["docker", "compose"]
+    if shutil.which("podman-compose"):
+        return ["podman-compose"]
+    raise RuntimeError("no compose engine found: install docker or podman-compose")
+
+
+class Bench:
+    """One running instance of bench/docker-compose.yml."""
+
+    def __init__(
+        self,
+        capture_name: str,
+        env: dict[str, str] | None = None,
+        profiles: tuple[str, ...] = (),
+    ) -> None:
+        self.capture_name = capture_name
+        self._cmd = [*_engine(), "-p", PROJECT, "-f", str(BENCH_DIR / "docker-compose.yml")]
+        for profile in profiles:
+            self._cmd += ["--profile", profile]
+        self._env = {**os.environ, "BENCH_CAPTURE": capture_name, **(env or {})}
+
+    def run(self, *args: str, timeout: float = 120, check: bool = True) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [*self._cmd, *args],
+            cwd=BENCH_DIR,
+            env=self._env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=check,
+        )
+
+    def up(self, *services: str) -> None:
+        self.run("up", "-d", *services, timeout=300)
+
+    def down(self) -> None:
+        self.run("down", "-v", "-t", "2", timeout=300, check=False)
+
+    def exec(self, service: str, *args: str, timeout: float = 60, check: bool = True) -> subprocess.CompletedProcess[str]:
+        return self.run("exec", "-T", service, *args, timeout=timeout, check=check)
+
+    def exec_async(self, service: str, *args: str) -> subprocess.Popen[str]:
+        """Start a command in a service without waiting; the caller reads its output."""
+        return subprocess.Popen(
+            [*self._cmd, "exec", "-T", service, *args],
+            cwd=BENCH_DIR,
+            env=self._env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )

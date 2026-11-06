@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 The igs-iso9506-mms contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Interop bench. The reference peer runs as separate containers and is used as a black box only
+# (IMPLEMENTATION.md, rule 1). Fixed addresses: the client is given the server address.
+
+x-peer: &peer
+  image: localhost/igsmms-peer:v1.6.2.1
+  build:
+    context: ./peer
+
+services:
+  ref-server:
+    <<: *peer
+    command: ["server_example_basic_io"]
+    networks:
+      bench:
+        ipv4_address: 172.31.102.10
+
+  ref-client:
+    <<: *peer
+    command: ["sleep", "infinity"]
+    networks:
+      bench:
+        ipv4_address: 172.31.102.21
+
+  # Shares the network namespace of the reference server, so that it sees every frame the server
+  # sends and receives. tcpdump writes packet by packet to captures/$BENCH_CAPTURE; the container
+  # outlives it so that the helpers can stop it and then run tshark with `exec`.
+  capture:
+    image: docker.io/nicolaka/netshoot@sha256:a20c2531bf35436ed3766cd6cfe89d352b050ccc4d7005ce6400adf97503da1b
+    network_mode: "service:ref-server"
+    depends_on:
+      - ref-server
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      BENCH_CAPTURE: ${BENCH_CAPTURE:-bench.pcap}
+    command:
+      - sh
+      - -c
+      - tcpdump -i any -U --immediate-mode -Z root -w "/captures/$$BENCH_CAPTURE" tcp port 102 & exec sleep infinity
+    volumes:
+      - ./captures:/captures
+
+networks:
+  bench:
+    ipam:
+      config:
+        - subnet: 172.31.102.0/24

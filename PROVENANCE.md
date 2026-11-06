@@ -105,4 +105,4 @@ silent, to be confirmed by an observation test against other implementations.
 
 | Source | Licence | Use | Provenance |
 | --- | --- | --- | --- |
-| libiec61850 | GNU GPL v3, to be confirmed at task F5 | Reference peer of the bench, black box only | Source never read |
+| libiec61850 | GPL-3.0 (`COPYING`, GitHub licence metadata) | Reference peer of the bench, tag `v1.6.2.1`, commit `c28c27c`, black box only; image built locally, not distributed | Source never read |
