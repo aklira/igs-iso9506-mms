@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 The igs-iso9506-mms contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/igs-iso9506-mms-codec",
+    "crates/igs-iso9506-mms-link",
+    "crates/igs-iso9506-mms",
+    "xtask",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/aklira/igs-iso9506-mms"
+
+# Rule 8 of IMPLEMENTATION.md. Inherited by the three library crates, not by xtask.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+arithmetic_side_effects = "deny"

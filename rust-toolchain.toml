@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 The igs-iso9506-mms contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt", "llvm-tools-preview"]
