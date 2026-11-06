@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 The igs-iso9506-mms contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Runs the standard gate of IMPLEMENTATION.md section 1 plus a coverage
+# report. The repository must build without docs/spec/ (the licensed
+# standards are not present in CI).
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: standard gate (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cargo tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-llvm-cov
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Documentation
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
+
+      - name: Tests
+        run: cargo test --workspace --all-features
+
+      - name: Coverage (report only)
+        run: cargo llvm-cov --workspace --all-features --summary-only
+
+      - name: Deny
+        run: cargo deny check
+
+  msrv:
+    name: minimum supported Rust version (1.85)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install the toolchain
+        run: rustup toolchain install 1.85 --profile minimal
+
+      # rust-toolchain.toml pins stable, so the toolchain is named on the command line.
+      - name: Tests
+        run: cargo +1.85 test --workspace --all-features

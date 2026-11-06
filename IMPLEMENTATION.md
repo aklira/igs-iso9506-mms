@@ -385,7 +385,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | P3 MMS profile data | [x] |
 | P4 TASE.2 conformance data | [x] |
 | F1 Workspace skeleton | [x] |
-| F2 Continuous integration and ai-log | [ ] |
+| F2 Continuous integration and ai-log | [x] |
 | F3 Codec approach | [ ] |
 | F4 Code generation | [ ] |
 | F5 Interop bench skeleton | [ ] |
