@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "crates/igs-iso9506-mms-codec",
     "crates/igs-iso9506-mms-link",

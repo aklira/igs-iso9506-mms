@@ -61,5 +61,6 @@ jobs:
         run: rustup toolchain install 1.85 --profile minimal
 
       # rust-toolchain.toml pins stable, so the toolchain is named on the command line.
+      # xtask is left out: it is not published and has its own rust-version.
       - name: Tests
-        run: cargo +1.85 test --workspace --all-features
+        run: cargo +1.85 test --workspace --exclude xtask --all-features

@@ -43,7 +43,8 @@ silent, to be confirmed by an observation test against other implementations.
   `filename` on page 61 is read as the type `FileName`.
 - **Sources**: ISO 9506-2, PDF, each page checked; parallel constructions of the same module.
 - **Confidence**: high, except the place of the `ENDIF` of page 119: medium.
-- **Test**: to be written (task F4).
+- **Test**: `cargo xtask codegen` parses every type of the corrected modules and fails otherwise;
+  `crates/igs-iso9506-mms-codec/tests/generated.rs` checks the counts.
 
 ### D-003 — The project writes its own BER codec and generator
 
@@ -69,6 +70,36 @@ silent, to be confirmed by an observation test against other implementations.
 - **Sources**: `docs/ai-log/F3.md`.
 - **Confidence**: high for criteria 2 and 3.
 - **Test**: the fuzz and property tests of the codec tasks.
+
+### D-004 — Scope of the generated types
+
+- **Decision**: the generator emits the types reachable from the MMS PDU and the ACSE APDU. The
+  service CHOICEs keep the services that the profile requires and gain an `Unsupported` variant.
+  Modifiers, the `service-ext` details, additional services, service-specific error information
+  and `Name` stay raw BER. Every service, CBB and code stays in the tables, in or out of scope.
+- **Sources**: IEC 60870-6-702 annex A, tables A.17 to A.32; the scope of `IMPLEMENTATION.md`.
+- **Confidence**: high.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/generated.rs`.
+
+### D-005 — Integers and DEFAULT in the generated types, for now
+
+- **Decision**: an INTEGER is an `i64` in a newtype that carries its named values and allowed
+  ranges; a component with DEFAULT is an `Option`, and its value stays in the component table.
+  Range-checked constructors and the default values on decoding come with tasks C5 to C7.
+- **Sources**: rule of strong types in `IMPLEMENTATION.md` section 2; X.680.
+- **Confidence**: medium: `Data` may carry an integer wider than 64 bits, to settle in task C6.
+- **Test**: to be written (task C6).
+
+### D-006 — Dependencies of `xtask`
+
+- **Decision**: `xtask` reads YAML with `serde` and `serde-saphyr` (MIT or Apache-2.0). It requires
+  Rust 1.89, while the library crates stay at 1.85; it is not published and runs on a development
+  machine only, so the minimum-version job excludes it. `serde_yaml` would need an advisory
+  exception. `Unicode-3.0` joins the accepted licences for `unicode-ident`, a permissive licence
+  on data tables, reached through `serde_derive`; `igs-iec104` accepts it too.
+- **Sources**: rule 9 of `IMPLEMENTATION.md`; `cargo deny check`.
+- **Confidence**: high.
+- **Test**: the workflow and `cargo deny check`.
 
 ## Third-party code and sources
 
