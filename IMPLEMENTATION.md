@@ -386,7 +386,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | P4 TASE.2 conformance data | [x] |
 | F1 Workspace skeleton | [x] |
 | F2 Continuous integration and ai-log | [x] |
-| F3 Codec approach | [ ] |
+| F3 Codec approach | [x] |
 | F4 Code generation | [ ] |
 | F5 Interop bench skeleton | [ ] |
 | C1 BER | [ ] |

@@ -45,6 +45,31 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high, except the place of the `ENDIF` of page 119: medium.
 - **Test**: to be written (task F4).
 
+### D-003 — The project writes its own BER codec and generator
+
+- **Decision**: the codec and `xtask codegen` are written in this project; `rasn` and
+  `rasn-compiler` are not used. Task F3 compared the two on the criteria of the plan, in order.
+- **Criterion 1, rule 8 guarantees**: does not separate them. `rasn` 0.30 returned an error on
+  nesting up to 100,000 levels and on oversized lengths, on a 2 MiB stack, and did not panic on
+  3 million noisy inputs. Its depth limit is fixed at 128, its decoding path is outside our lints,
+  and it holds two `unsafe` blocks. The prototype of this project gave the same results with the
+  lints of rule 8 active.
+- **Criterion 2, extension markers**: `rasn-compiler` 0.16 refuses the end marker, in the two
+  service CHOICEs and in five ACSE APDUs. The prototype reads them.
+- **Criterion 3, no hand edits**: separates them. After three rewrites of the input (end markers,
+  ACSE constraints, classes and information objects removed), `rasn-compiler` still produced code
+  with 63 compile errors, 15 of them in the main MMS module. The prototype's output compiled
+  unedited.
+- **Criterion 4, dependency**: not justified, 35 crates for a function that the project can hold.
+- **Also**: `rasn` rejects an unknown tag, whereas the scope asks for an unsupported variant that
+  keeps the raw bytes. A hand-written wrapper would be needed.
+- **Limits of the trial**: the prototype covers three productions and leaves service and ACSE
+  field contents raw. The noise run is not a fuzzing campaign. `rasn-compiler` was tried at one
+  version, with quick rewrites of the input.
+- **Sources**: `docs/ai-log/F3.md`.
+- **Confidence**: high for criteria 2 and 3.
+- **Test**: the fuzz and property tests of the codec tasks.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
