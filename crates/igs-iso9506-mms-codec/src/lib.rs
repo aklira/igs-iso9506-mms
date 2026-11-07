@@ -23,3 +23,6 @@ pub mod generated;
 
 /// Vocabulary of the generated code.
 pub mod schema;
+
+/// Basic Encoding Rules (ITU-T X.690).
+pub mod ber;

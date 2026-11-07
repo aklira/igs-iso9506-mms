@@ -101,6 +101,21 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high.
 - **Test**: the workflow and `cargo deny check`.
 
+### D-007 — What the BER layer accepts and writes
+
+- **Decision**: decoding accepts every choice X.690 leaves to a BER sender: long or short length
+  forms, extra length octets (§8.1.3.5, note 2), the indefinite form on constructed encodings,
+  constructed BIT STRING, OCTET STRING and character strings, any non-zero octet as TRUE. It
+  refuses what X.690 forbids to every sender: an INTEGER with a redundant leading octet (§8.3.2),
+  a tag number in a needless high-tag form (§8.1.2.4), the reserved length octet. Encoding writes
+  definite lengths in the fewest octets, primitive strings and TRUE as `FF`, as DER does.
+  GraphicString is read without escape sequences, so as printable ASCII. Nesting stops at 64
+  constructed levels by default, a value the caller can change.
+- **Sources**: ITU-T X.690 §8.1 to §8.8, §8.19, §8.23, §10, §11.1.
+- **Confidence**: medium for the refusal of redundant INTEGER octets and for GraphicString:
+  some peers might send them. To check on the bench (tasks L6, T4, S4).
+- **Test**: `crates/igs-iso9506-mms-codec/tests/ber.rs`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
