@@ -41,3 +41,6 @@ pub mod presentation;
 
 /// ACSE APDUs in normal mode.
 pub mod acse;
+
+/// Common MMS types: the readings that their prose adds to the generated types.
+pub mod mms;

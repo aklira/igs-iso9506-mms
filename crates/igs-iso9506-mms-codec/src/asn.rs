@@ -54,6 +54,12 @@ pub enum Error {
         /// ASN.1 type.
         ty: &'static str,
     },
+    /// A value that the prose of its type does not allow: a character outside a permitted
+    /// alphabet, a reserved bit set, a malformed format.
+    Invalid {
+        /// ASN.1 type.
+        ty: &'static str,
+    },
     /// Octets kept as raw BER that are not exactly one encoding of the expected tag.
     InvalidRaw,
     /// An implicit tag asked of a CHOICE, which X.680 §31.2.9 forbids.
@@ -72,6 +78,7 @@ impl fmt::Display for Error {
             Self::NoAlternative { ty, found } => write!(f, "{ty}: no alternative for {found:?}"),
             Self::OutOfRange { ty } => write!(f, "{ty}: value out of range"),
             Self::WrongSize { ty } => write!(f, "{ty}: size out of range"),
+            Self::Invalid { ty } => write!(f, "{ty}: invalid value"),
             Self::InvalidRaw => write!(f, "raw BER is not one encoding of the expected tag"),
             Self::ImplicitChoice { ty } => write!(f, "{ty}: a CHOICE cannot be tagged implicitly"),
         }
@@ -445,6 +452,16 @@ primitive!(
     /// INTEGER, within 64 bits.
     Integer, "INTEGER", i64, Identifier::INTEGER,
     |e| ber::integer_i64(e), |v, w, id| w.integer(id, *v)
+);
+primitive!(
+    /// INTEGER, within 128 bits.
+    Integer128, "INTEGER", i128, Identifier::INTEGER,
+    |e| ber::integer_i128(e), |v, w, id| w.integer_i128(id, *v)
+);
+primitive!(
+    /// INTEGER that shall not be negative, within 128 bits.
+    Unsigned128, "INTEGER", u128, Identifier::INTEGER,
+    |e| ber::integer_u128(e), |v, w, id| w.unsigned_u128(id, *v)
 );
 primitive!(
     /// ENUMERATED.

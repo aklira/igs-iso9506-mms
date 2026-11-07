@@ -16,8 +16,8 @@ mod writer;
 pub use error::Error;
 pub use reader::{Element, Reader, DEFAULT_MAX_DEPTH};
 pub use value::{
-    bit_string, boolean, enumerated, integer_bytes, integer_i64, integer_u64, null,
-    object_identifier, octet_string, string, Charset,
+    bit_string, boolean, enumerated, integer_bytes, integer_i128, integer_i64, integer_u128,
+    integer_u64, null, object_identifier, octet_string, string, Charset,
 };
 pub use writer::Writer;
 

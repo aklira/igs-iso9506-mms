@@ -46,6 +46,27 @@ const UNCHECKED: [&str; 4] = [
     "AdditionalCBBOptions",
 ];
 
+/// Types read in their ELSE branch: the profile has no `char` CBB (IEC 60870-6-702 table A.19), so
+/// these strings are VisibleStrings (ISO 9506-2 §7.5.2, §7.5.6), not the UTF8Strings of the IF
+/// branch that the data files keep.
+const ELSE_BRANCH: [&str; 3] = ["Identifier", "MMSString", "MMS255String"];
+
+/// Members whose integers exceed 64 bits: a type description gives them up to 127 bits (ISO
+/// 9506-1 §14.2.1, `Unsigned8` sizes); `unsigned` and `bcd` shall not be negative (ISO 9506-2
+/// §14.4.2). Member, Rust type, codec kind.
+const WIDE: [(&str, &str, &str, &str); 3] = [
+    ("Data", "integer", "i128", "Integer128"),
+    ("Data", "unsigned", "u128", "Unsigned128"),
+    ("Data", "bcd", "u128", "Unsigned128"),
+];
+
+/// Checks of the prose, written by hand in `crate::mms`, that the constraint check calls.
+const HOOKS: [(&str, &str); 3] = [
+    ("Identifier", "crate::mms::check_identifier"),
+    ("TimeOfDay", "crate::mms::check_time_of_day"),
+    ("FloatingPoint", "crate::mms::check_floating_point"),
+];
+
 /// Members kept as raw BER: their alternatives belong to services out of scope.
 const OPAQUE_MEMBERS: [(&str, &str); 1] = [("ServiceError", "serviceSpecificInfo")];
 
@@ -231,7 +252,14 @@ impl<'a> Generator<'a> {
         if let Some(other) = found.next() {
             return Err(format!("{name}: in {} and {}", module.name, other.name).into());
         }
-        module.type_of(name)
+        let mut ty = module.type_of(name)?;
+        if ELSE_BRANCH.contains(&name) {
+            match ty.kind {
+                Kind::Text(_) => ty.kind = Kind::Text(26),
+                _ => return Err(format!("{name}: not a string type").into()),
+            }
+        }
+        Ok(ty)
     }
 
     /// X.680 §31.2.7: an implicit tag on a CHOICE or an open type is explicit.
@@ -349,7 +377,12 @@ impl<'a> Generator<'a> {
     fn field(&mut self, parent: &str, asn: &str, member: &Member) -> Result<Field, Fail> {
         let opaque = OPAQUE_MEMBERS.contains(&(asn, member.name.as_str()));
         let hint = format!("{parent}{}", camel(&member.name));
-        let rust = if opaque {
+        let wide = WIDE
+            .iter()
+            .find(|(t, m, _, _)| *t == asn && *m == member.name);
+        let rust = if let Some((_, _, rust, kind)) = wide {
+            plain(rust, kind)
+        } else if opaque {
             self.opaque_kind(format!("Opaque{hint}"), &member.ty)?
         } else {
             self.rust(&member.ty, &hint)?
@@ -870,12 +903,16 @@ fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<
             let checked = !UNCHECKED.contains(&ty.as_str());
             let values = checked && !constraint.values.is_empty() && !constraint.values_extensible;
             let sizes = checked && !constraint.sizes.is_empty() && !constraint.sizes_extensible;
+            let hook = HOOKS
+                .iter()
+                .find(|(t, _)| *t == ty.as_str())
+                .map(|(_, f)| *f);
             if values && !matches!(inner, Rust::Plain("i64", _)) {
                 return Err(
                     format!("{ty}: value constraint on a type that is not an integer").into(),
                 );
             }
-            let checked = values || sizes;
+            let checked = values || sizes || hook.is_some();
             if base_accepts {
                 writeln!(
                     o,
@@ -920,6 +957,9 @@ fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<
                 }
                 if sizes {
                     writeln!(o, "asn::check_sizes({ty:?}, Self::SIZES, &self.0)?;")?;
+                }
+                if let Some(hook) = hook {
+                    writeln!(o, "{hook}(&self.0)?;")?;
                 }
                 writeln!(o, "Ok(())\n}}")?;
             }

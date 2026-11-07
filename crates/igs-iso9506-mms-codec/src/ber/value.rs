@@ -37,26 +37,31 @@ pub fn integer_bytes<'a>(element: &Element<'a>) -> Result<&'a [u8], Error> {
     }
 }
 
-/// INTEGER (§8.3) as an `i64`.
-pub fn integer_i64(element: &Element<'_>) -> Result<i64, Error> {
+/// INTEGER (§8.3) as an `i128`.
+pub fn integer_i128(element: &Element<'_>) -> Result<i128, Error> {
     let contents = integer_bytes(element)?;
-    if contents.len() > 8 {
+    if contents.len() > 16 {
         return Err(Error::IntegerOutOfRange);
     }
     let negative = contents.first().is_some_and(|b| b & 0x80 != 0);
-    let mut bytes = if negative { [0xFF; 8] } else { [0; 8] };
-    let start = 8usize
+    let mut bytes = if negative { [0xFF; 16] } else { [0; 16] };
+    let start = 16usize
         .checked_sub(contents.len())
         .ok_or(Error::IntegerOutOfRange)?;
     bytes
         .get_mut(start..)
         .ok_or(Error::IntegerOutOfRange)?
         .copy_from_slice(contents);
-    Ok(i64::from_be_bytes(bytes))
+    Ok(i128::from_be_bytes(bytes))
 }
 
-/// INTEGER (§8.3) as a `u64`; a negative value is out of range.
-pub fn integer_u64(element: &Element<'_>) -> Result<u64, Error> {
+/// INTEGER (§8.3) as an `i64`.
+pub fn integer_i64(element: &Element<'_>) -> Result<i64, Error> {
+    i64::try_from(integer_i128(element)?).map_err(|_| Error::IntegerOutOfRange)
+}
+
+/// INTEGER (§8.3) as a `u128`; a negative value is out of range.
+pub fn integer_u128(element: &Element<'_>) -> Result<u128, Error> {
     let contents = integer_bytes(element)?;
     if contents.first().is_some_and(|b| b & 0x80 != 0) {
         return Err(Error::IntegerOutOfRange);
@@ -66,12 +71,17 @@ pub fn integer_u64(element: &Element<'_>) -> Result<u64, Error> {
         [0x00, rest @ ..] if !rest.is_empty() => rest,
         _ => contents,
     };
-    if magnitude.len() > 8 {
+    if magnitude.len() > 16 {
         return Err(Error::IntegerOutOfRange);
     }
     Ok(magnitude
         .iter()
-        .fold(0u64, |value, &octet| (value << 8) | u64::from(octet)))
+        .fold(0u128, |value, &octet| (value << 8) | u128::from(octet)))
+}
+
+/// INTEGER (§8.3) as a `u64`; a negative value is out of range.
+pub fn integer_u64(element: &Element<'_>) -> Result<u64, Error> {
+    u64::try_from(integer_u128(element)?).map_err(|_| Error::IntegerOutOfRange)
 }
 
 /// ENUMERATED (§8.4): encoded as an INTEGER.

@@ -4402,9 +4402,9 @@ pub enum Data {
     /// Alternative `bit-string`.
     BitString(BitString),
     /// Alternative `integer`.
-    Integer(i64),
+    Integer(i128),
     /// Alternative `unsigned`.
-    Unsigned(i64),
+    Unsigned(u128),
     /// Alternative `floating-point`.
     FloatingPoint(FloatingPoint),
     /// Alternative `octet-string`.
@@ -4416,7 +4416,7 @@ pub enum Data {
     /// Alternative `binary-time`.
     BinaryTime(TimeOfDay),
     /// Alternative `bcd`.
-    Bcd(i64),
+    Bcd(u128),
     /// Alternative `booleanArray`.
     BooleanArray(BitString),
     /// Alternative `objId`.
@@ -4520,10 +4520,10 @@ impl Data {
         ) || asn::accepts::<asn::BitStr>(
             Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
             id,
-        ) || asn::accepts::<asn::Integer>(
+        ) || asn::accepts::<asn::Integer128>(
             Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
             id,
-        ) || asn::accepts::<asn::Integer>(
+        ) || asn::accepts::<asn::Unsigned128>(
             Some(Tag::new(TagClass::Context, 6, Tagging::Implicit)),
             id,
         ) || asn::accepts::<FloatingPoint>(
@@ -4539,7 +4539,7 @@ impl Data {
             Some(Tag::new(TagClass::Context, 11, Tagging::Implicit)),
             id,
         ) || asn::accepts::<TimeOfDay>(Some(Tag::new(TagClass::Context, 12, Tagging::Implicit)), id)
-            || asn::accepts::<asn::Integer>(
+            || asn::accepts::<asn::Unsigned128>(
                 Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
                 id,
             )
@@ -4590,16 +4590,20 @@ impl Data {
                 e,
             )?));
         }
-        if asn::accepts::<asn::Integer>(Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)), id)
-        {
-            return Ok(Self::Integer(asn::decode::<asn::Integer>(
+        if asn::accepts::<asn::Integer128>(
+            Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::Integer(asn::decode::<asn::Integer128>(
                 Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
                 e,
             )?));
         }
-        if asn::accepts::<asn::Integer>(Some(Tag::new(TagClass::Context, 6, Tagging::Implicit)), id)
-        {
-            return Ok(Self::Unsigned(asn::decode::<asn::Integer>(
+        if asn::accepts::<asn::Unsigned128>(
+            Some(Tag::new(TagClass::Context, 6, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::Unsigned(asn::decode::<asn::Unsigned128>(
                 Some(Tag::new(TagClass::Context, 6, Tagging::Implicit)),
                 e,
             )?));
@@ -4644,11 +4648,11 @@ impl Data {
                 e,
             )?));
         }
-        if asn::accepts::<asn::Integer>(
+        if asn::accepts::<asn::Unsigned128>(
             Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
             id,
         ) {
-            return Ok(Self::Bcd(asn::decode::<asn::Integer>(
+            return Ok(Self::Bcd(asn::decode::<asn::Unsigned128>(
                 Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
                 e,
             )?));
@@ -4704,12 +4708,12 @@ impl Data {
                 v,
                 w,
             ),
-            Self::Integer(v) => asn::encode::<asn::Integer>(
+            Self::Integer(v) => asn::encode::<asn::Integer128>(
                 Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
                 v,
                 w,
             ),
-            Self::Unsigned(v) => asn::encode::<asn::Integer>(
+            Self::Unsigned(v) => asn::encode::<asn::Unsigned128>(
                 Some(Tag::new(TagClass::Context, 6, Tagging::Implicit)),
                 v,
                 w,
@@ -4739,7 +4743,7 @@ impl Data {
                 v,
                 w,
             ),
-            Self::Bcd(v) => asn::encode::<asn::Integer>(
+            Self::Bcd(v) => asn::encode::<asn::Unsigned128>(
                 Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
                 v,
                 w,
@@ -5320,14 +5324,28 @@ impl FloatingPoint {
         <asn::Octets as asn::Codec>::accepts(id)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        Ok(Self(<asn::Octets as asn::Codec>::decode(e)?))
+        let value = Self(<asn::Octets as asn::Codec>::decode(e)?);
+        value.check()?;
+        Ok(value)
     }
     fn base_encode(
         &self,
         w: &mut Writer,
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
+        self.check()?;
         <asn::Octets as asn::Codec>::encode(&self.0, w, implicit)
+    }
+    /// The value, if it meets the constraint of the type.
+    pub fn new(value: Vec<u8>) -> Result<Self, asn::Error> {
+        let value = Self(value);
+        value.check()?;
+        Ok(value)
+    }
+    /// Checks the value against the constraint of the type.
+    pub fn check(&self) -> Result<(), asn::Error> {
+        crate::mms::check_floating_point(&self.0)?;
+        Ok(())
     }
 }
 
@@ -6087,10 +6105,10 @@ impl Identifier {
 
 impl Identifier {
     fn base_accepts(id: ber::Identifier) -> bool {
-        <asn::Utf8 as asn::Codec>::accepts(id)
+        <asn::Visible as asn::Codec>::accepts(id)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        let value = Self(<asn::Utf8 as asn::Codec>::decode(e)?);
+        let value = Self(<asn::Visible as asn::Codec>::decode(e)?);
         value.check()?;
         Ok(value)
     }
@@ -6100,7 +6118,7 @@ impl Identifier {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         self.check()?;
-        <asn::Utf8 as asn::Codec>::encode(&self.0, w, implicit)
+        <asn::Visible as asn::Codec>::encode(&self.0, w, implicit)
     }
     /// The value, if it meets the constraint of the type.
     pub fn new(value: String) -> Result<Self, asn::Error> {
@@ -6111,6 +6129,7 @@ impl Identifier {
     /// Checks the value against the constraint of the type.
     pub fn check(&self) -> Result<(), asn::Error> {
         asn::check_sizes("Identifier", Self::SIZES, &self.0)?;
+        crate::mms::check_identifier(&self.0)?;
         Ok(())
     }
 }
@@ -7199,17 +7218,17 @@ impl MMSString {}
 
 impl MMSString {
     fn base_accepts(id: ber::Identifier) -> bool {
-        <asn::Utf8 as asn::Codec>::accepts(id)
+        <asn::Visible as asn::Codec>::accepts(id)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        Ok(Self(<asn::Utf8 as asn::Codec>::decode(e)?))
+        Ok(Self(<asn::Visible as asn::Codec>::decode(e)?))
     }
     fn base_encode(
         &self,
         w: &mut Writer,
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
-        <asn::Utf8 as asn::Codec>::encode(&self.0, w, implicit)
+        <asn::Visible as asn::Codec>::encode(&self.0, w, implicit)
     }
 }
 
@@ -11465,6 +11484,7 @@ impl TimeOfDay {
     /// Checks the value against the constraint of the type.
     pub fn check(&self) -> Result<(), asn::Error> {
         asn::check_sizes("TimeOfDay", Self::SIZES, &self.0)?;
+        crate::mms::check_time_of_day(&self.0)?;
         Ok(())
     }
 }

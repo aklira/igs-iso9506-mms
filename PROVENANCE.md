@@ -87,8 +87,8 @@ silent, to be confirmed by an observation test against other implementations.
   ranges; a component with DEFAULT is an `Option`, and its value stays in the component table.
   Range-checked constructors and the default values on decoding come with tasks C5 to C7.
 - **Sources**: rule of strong types in `IMPLEMENTATION.md` section 2; X.680.
-- **Confidence**: medium: `Data` may carry an integer wider than 64 bits, to settle in task C6.
-- **Test**: to be written (task C6).
+- **Confidence**: medium: `Data` may carry an integer wider than 64 bits, settled by D-012.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/common_types.rs` (task C6).
 
 ### D-006 — Dependencies of `xtask`
 
@@ -195,6 +195,33 @@ silent, to be confirmed by an observation test against other implementations.
   to be confirmed against peers in tasks C7, L6 and T4.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/acse.rs`, `tests/generated.rs`, and the unit tests
   of `xtask/src/emit.rs`.
+
+### D-012 — Common MMS types: the profile's branch, wide integers, the prose checked
+
+- **Decision**: the common types stay generated; `crate::mms` adds what their prose says.
+  - **Strings**: the data files keep the IF branches of the directives. The TASE.2 profile has no
+    `char` CBB, so the generator takes the ELSE branch of `Identifier`, `MMSString` and
+    `MMS255String`: VisibleStrings, not UTF8Strings. An Identifier has 1 to 32 characters among
+    letters, digits, `$` and `_`.
+  - **Integers of `Data`**: `integer` is an `i128`; `unsigned` and `bcd`, which shall not be
+    negative, are `u128`. A type description gives an integer at most 127 bits (`Unsigned8`), so
+    every value of a described type fits; a wider one is refused. This settles D-005.
+  - **TimeOfDay**: 4 or 6 octets, the four top bits zero; read as milliseconds since midnight and
+    the day since 1 January 1984. Values up to the 28-bit maximum are accepted, as the clause
+    sets no other bound.
+  - **FloatingPoint**: at least two octets; the exponent width is above zero and leaves room for
+    the sign. The IEEE 754 single and double forms are written as is. Any width is read by the
+    general rule, and narrowed to `f32` or `f64` with the rounding rules of the clause: rounded up
+    when the first bit that does not fit is one, so a tie goes away from zero, unlike IEEE 754;
+    a magnitude too large becomes an infinity, one too small a zero. The subnormal range of the
+    target counts as representable.
+  - The placeholders of the ELSE branches (`array [1] IMPLICIT NULL` without `str1`, and the
+    like) are not read: the profile requires `str1` and `str2`.
+- **Sources**: ISO 9506-2 §7.5.1, §7.5.2, §7.5.3, §7.5.6, §14.2.1, §14.4.1 to §14.4.3; ISO
+  9506-1 §14.2.1; IEC 60870-6-702 table A.19.
+- **Confidence**: high for the formats; medium for the strict alphabet of Identifier, to check on
+  the bench (tasks L6, T4).
+- **Test**: `crates/igs-iso9506-mms-codec/tests/common_types.rs`.
 
 ## Third-party code and sources
 

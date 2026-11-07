@@ -121,6 +121,11 @@ impl Writer {
 
     /// INTEGER in the fewest octets (§8.3.2).
     pub fn integer(&mut self, id: Identifier, value: i64) {
+        self.integer_i128(id, i128::from(value));
+    }
+
+    /// INTEGER from an `i128`, in the fewest octets (§8.3.2).
+    pub fn integer_i128(&mut self, id: Identifier, value: i128) {
         let bytes = value.to_be_bytes();
         let mut start = 0usize;
         while let (Some(&a), Some(&b)) = (bytes.get(start), bytes.get(start.saturating_add(1))) {
@@ -135,6 +140,11 @@ impl Writer {
 
     /// A non-negative INTEGER from a `u64`, with a leading zero octet when needed for the sign.
     pub fn unsigned(&mut self, id: Identifier, value: u64) {
+        self.unsigned_u128(id, u128::from(value));
+    }
+
+    /// A non-negative INTEGER from a `u128`, with a leading zero octet when needed for the sign.
+    pub fn unsigned_u128(&mut self, id: Identifier, value: u128) {
         let bytes = value.to_be_bytes();
         let magnitude = significant(&bytes);
         if magnitude.first().is_some_and(|b| b & 0x80 != 0) {
