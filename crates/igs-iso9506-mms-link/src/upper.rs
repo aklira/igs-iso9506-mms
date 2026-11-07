@@ -425,16 +425,24 @@ impl Connection {
         let Some(bytes) = accept.user_data.as_deref() else {
             return self.protocol_error();
         };
-        let user_data = match ConnectAccept::decode(bytes) {
+        let normal = match ConnectAccept::decode(bytes) {
             Ok(ConnectAccept {
                 mode: Mode::Normal,
                 normal: Some(normal),
                 ..
-            }) => normal.user_data,
+            }) => normal,
             _ => return self.protocol_error(),
         };
+        // The results follow the order of the CP: the ACSE context, then the MMS context. Without
+        // both, the association cannot be carried (ISO 9506-2 §A.5).
+        let results = normal.context_results.unwrap_or_default();
+        let accepted = |index: usize| results.get(index).is_some_and(|result| result.result == 0);
+        let required_accepted = accepted(0) && accepted(1);
+        if !required_accepted {
+            return self.protocol_error();
+        }
         self.state = State::Open;
-        vec![Action::Connected(user_data)]
+        vec![Action::Connected(normal.user_data)]
     }
 
     /// Initiator: a REFUSE; with reason 2 it carries a CPR, whose user data is passed up.

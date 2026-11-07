@@ -15,8 +15,8 @@ use std::time::Duration;
 
 use igs_iso9506_mms_codec::acse;
 use igs_iso9506_mms_codec::presentation::{
-    self, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition, Mode, Pdv, PdvValues,
-    UserData,
+    self, AcceptNormal, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition,
+    ContextResult, Mode, Pdv, PdvValues, UserData,
 };
 use igs_iso9506_mms_codec::schema::ObjectIdentifier;
 use igs_iso9506_mms_codec::session::{
@@ -490,4 +490,39 @@ fn the_session_accept_carries_the_protocol_version_two() {
         contexts.iter().all(|c| c.id % 2 == 1),
         "context identifiers are odd"
     );
+}
+
+#[test]
+fn a_cpa_that_rejects_the_mms_context_aborts_the_connection() {
+    let mut initiator = upper::Connection::new(Role::Initiator, LinkConfig::default()).unwrap();
+    let _ = initiator.handle(Event::Connect(None));
+    // The ACSE context is accepted; the MMS context is rejected by the provider.
+    let results = vec![
+        ContextResult {
+            result: 0,
+            transfer_syntax: Some(ObjectIdentifier(vec![2, 1, 1])),
+            provider_reason: None,
+        },
+        ContextResult {
+            result: 2,
+            transfer_syntax: None,
+            provider_reason: Some(1),
+        },
+    ];
+    let cpa = ConnectAccept {
+        mode: Mode::Normal,
+        x410_parameters: None,
+        normal: Some(AcceptNormal {
+            context_results: Some(results),
+            ..AcceptNormal::default()
+        }),
+    };
+    let tsdu = encode_tsdu(&[Spdu::Accept(Accept {
+        user_data: Some(cpa.encode().unwrap()),
+        ..Accept::default()
+    })])
+    .unwrap();
+    let actions = initiator.handle(Event::Received(tsdu));
+    assert!(actions.contains(&Action::Aborted(Origin::Provider)));
+    assert!(initiator.is_closed());
 }

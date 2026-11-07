@@ -415,8 +415,8 @@ silent, to be confirmed by an observation test against other implementations.
     bit, without user data. An ABORT received counts as a user abort when its user bit is set.
   - Data transfer, added by task L4: a TSDU of GIVE TOKENS then DATA TRANSFER carries the user data
     (X.225 §6.3.7). A DATA TRANSFER alone is a protocol error; the encoder refuses to write one.
-  - The results of the CPA are passed up unchanged; task L4 checks that the ACSE and MMS contexts
-    are accepted in the association it builds.
+  - The CPA must accept the ACSE and MMS contexts, the first two proposed. Otherwise the initiator
+    aborts with a protocol error (added in task L4, which needs both).
 - **Sources**: ITU-T X.225 §6.3.7, §8.3.1, §8.3.4, §8.3.5.10, §8.3.6, §8.3.7, §8.3.9; X.226 §6.2.2.7,
   §6.2.3, §6.2.4.9, §6.2.5.5 to §6.2.5.8; ISO 9506-2 module ISO-9506-MMS-1 for the MMS abstract
   syntax; X.690 basic-encoding for the transfer syntax.
