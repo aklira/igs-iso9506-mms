@@ -162,6 +162,40 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/presentation.rs`.
 
+### D-011 — The generator writes the codec; the ACSE APDUs use it
+
+- **Decision**: `xtask codegen` gives every generated type a decoder and an encoder, through the
+  `Codec` trait of `crate::asn`, a small runtime written by hand. The ACSE APDUs are these
+  generated types; `crate::acse` adds what the module does not say. The rules:
+  - Tags are compared on class and number. An implicit tag replaces the identifier, an explicit
+    one wraps the value; a CHOICE or an open type is always tagged explicitly (X.680 §31.2.7).
+  - A SEQUENCE is read in order. An unknown element is refused, except in an incoming AARQ, which
+    ignores it (X.227 §7.4); it is not written back. Bits without a name are kept.
+  - At generation, the tags of the alternatives of a CHOICE, and those of an optional component
+    and the components that may follow it, must differ (X.680 §25.6, §29.3).
+  - A value or size constraint without an extension marker is checked on decoding and on
+    encoding, and through a `new` constructor. An ENUMERATED without an extension marker admits
+    only its named values (X.680 §20). The four CBB bit strings are not checked: this edition
+    fixes their size, while the bench peer sends 85 and 11 bits. Task C7 settles this.
+  - A component with DEFAULT stays an `Option`: absent means the default value, and a value
+    received is written back. This replaces the default values on decoding announced in D-005.
+  - `EXTERNAL`, `EMBEDDED PDV`, open types and the opaque types of D-004 are kept as one BER
+    encoding with their own tag, its length rewritten in the definite form. The tags of `Name`
+    and `RelativeDistinguishedName` come from X.501 §9.2 and §9.3. Raw octets are checked before
+    they are written.
+  - An AP title or AE qualifier is decoded in form 2 and kept raw in form 1, as the plan asks;
+    X.227 §10.3.1 and IEC 60870-6-702 table A.58 require receiving both forms.
+  - A protocol version field that is absent means version 1 (X.227 §7.1.3.2, note 3).
+  - User information is read with `acse::External` (X.690 §8.18).
+- **Sources**: ITU-T X.227 §7.1.3.2, §7.1.4.1, §7.4, §9, §10.3.1, amendment 1; X.680 §20,
+  §25.6, §29.3, §31.2.7, §31.2.9; X.690 §8.14, §8.18; X.501 §9.2, §9.3; IEC 60870-6-702 tables
+  A.47, A.52 to A.58. Observation: the AARQ and AARE of the bench peers decode and re-encode octet
+  for octet.
+- **Confidence**: high for the ACSE rules; medium for the strict checks of the MMS constraints,
+  to be confirmed against peers in tasks C7, L6 and T4.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/acse.rs`, `tests/generated.rs`, and the unit tests
+  of `xtask/src/emit.rs`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
