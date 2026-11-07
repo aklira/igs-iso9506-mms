@@ -840,3 +840,20 @@ silent, to be confirmed by an observation test against other implementations.
 | --- | --- | --- | --- |
 | tokio 1.54.1 and its dependencies | MIT, Apache-2.0, Unicode-3.0 (see `cargo deny check`) | Asynchronous runtime and TCP of the client crate (D-020) | crates.io; no source read beyond its public API |
 | libiec61850 | GPL-3.0 (`COPYING`, GitHub licence metadata) | Reference peer of the bench, tag `v1.6.2.1`, commit `c28c27c`, black box only; image built locally, not distributed | Source never read |
+
+### D-031 — The server's model sees the association that calls it (task S1 of the TASE.2 plan)
+
+- **Decision**: a server serves a `Model` (`Server::bind_model`), whose methods name the association that makes each call:
+  `admit` (the Initiate request is answered positively when it returns true), `dispatch` (the confirmed services), `released`
+  (the association ended, however it ended, once it was admitted), and `poll` (time-driven outputs, every
+  `ServerConfig::poll_interval`). An `Outbound` names the association it is for, or none for all. The `Vmd` is a `Model`
+  that ignores the association, so `Server::bind` is unchanged. The responder's link indicates the calling AP-title and AE
+  qualifier of the AARQ (`Action::Calling`), and the initiator sends the AP-title of its configuration.
+- **Why**: a TASE.2 server must check each request against the bilateral table of the client that makes it, and send each
+  transfer report to the association that started it (IEC 60870-6-503 §5.2.3, §7.2.2.2.3, §7.2.5.5.3). A broadcast and a
+  dispatch without identity cannot do that.
+- **Sources**: ISO 8650-1 (the AARQ fields `calling-AP-title` and `calling-AE-qualifier`); the MMS server's existing model task.
+- **Confidence**: high for the mechanism; the poll interval is a configuration value, not a standard's.
+- **Test**: `crates/igs-iso9506-mms/tests/server_model.rs`: the calling AP-title as the model sees it, a refusal, the release
+  when the client concludes, and an output that reaches its association only.
+

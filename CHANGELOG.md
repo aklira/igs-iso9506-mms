@@ -21,6 +21,11 @@ All notable changes to this project are recorded in this file. The format follow
   the Reject PDU, the association limit, and the reports published to the open associations.
 - `igs-iso9506-mms::vmd`: the model of the VMD: domains, named variables and named variable lists, with the
   `Variable` trait that a device object implements.
+- `igs-iso9506-mms::server::Model`: a model of the server, other than the VMD, that sees each association: its
+  calling identity (the AP-title and the AE qualifier of its AARQ), its admission, its confirmed services, its
+  release, and a polled output sent to one association (`Outbound`). `Server::bind_model` serves it (decision D-031).
+- `igs-iso9506-mms-link`: `Action::Calling`, the identity of the calling side indicated before the Initiate request.
+  The initiator sends the AP-title of its configuration in its AARQ.
 - `igs-iso9506-mms::tls`: TLS with a `TlsBackend` trait and a rustls backend (TLS 1.2 and 1.3, mutual
   authentication, revocation lists), for the client and the server (IEC 62351-3, decision D-030).
 - Binaries `igsmms-client` (command line client) and `igsmms-server` (demonstration server from a TOML file).
