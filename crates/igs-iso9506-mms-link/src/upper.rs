@@ -15,7 +15,7 @@
 
 use igs_iso9506_mms_codec::acse;
 use igs_iso9506_mms_codec::presentation::{
-    self, AbortUser, AcceptNormal, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition,
+    self, AcceptNormal, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition,
     ContextResult, Encoding, Mode, UserData,
 };
 use igs_iso9506_mms_codec::schema::ObjectIdentifier;
@@ -334,10 +334,11 @@ impl Connection {
         if self.is_closed() || self.state == State::Idle {
             return vec![Action::Misuse("abort needs a connection in progress")];
         }
-        let user_abort = presentation::Abort::User(AbortUser::default());
         let spdu = Spdu::Abort(Abort {
             transport_disconnect: ABORT_USER | ABORT_TRANSPORT_RELEASED,
-            user_data: user_abort.encode().ok(),
+            // The MMS abort has no PDU of its own (ISO 9506-2 §24.4), so no user data follows the
+            // user bit (X.225 §8.3.9.6 makes the User Data parameter optional).
+            user_data: None,
             ..Abort::default()
         });
         match send(&[spdu]) {

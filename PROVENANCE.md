@@ -410,8 +410,8 @@ silent, to be confirmed by an observation test against other implementations.
   - Release: FINISH with the transport kept (transport disconnect 0), answered at once by a
     DISCONNECT from the other end, which is then released (X.225 §8.3.6, §8.3.7). This layer has no
     user to wait for, so the answer is immediate.
-  - Abort: the user abort is an ABORT with the user bit and the transport-released bit, carrying an
-    empty ARU PPDU. A protocol error is an ABORT with the protocol-error bit and the transport-released
+  - Abort: the user abort is an ABORT with the user bit and the transport-released bit, with
+    no user data (task L6: an empty ARU PPDU was dropped, see below). A protocol error is an ABORT with the protocol-error bit and the transport-released
     bit, without user data. An ABORT received counts as a user abort when its user bit is set.
   - Data transfer, added by task L4: a TSDU of GIVE TOKENS then DATA TRANSFER carries the user data
     (X.225 §6.3.7). A DATA TRANSFER alone is a protocol error; the encoder refuses to write one.
@@ -465,12 +465,18 @@ silent, to be confirmed by an observation test against other implementations.
     a response against what this end serves (ISO 9506-1 §8.2.1.1.8). A received PDU the negotiation
     does not allow is passed up as `Unsupported`, for the Reject PDU of task L5. An Initiate PDU is
     refused within the association (ISO 9506-1 §8.2.2).
-  - Conclude (ISO 9506-2 §24.3, Annex A.1.2): the initiator sends the CONCLUDE request, then ACSE's
-    RLRQ with the normal reason, and waits for the RLRE before the session release. The responder
-    answers at once with a CONCLUDE response and a RLRE, and releases when the session release
-    arrives. This end does not reject a CONCLUDE; the Conclude-ErrorPDU path is not implemented.
+  - Conclude (ISO 9506-2 §24.3, Annex A.1.2), in the order of Annex A.1.2.1 (corrected in task L6):
+    the initiator sends the CONCLUDE request alone, and sends ACSE's RLRQ, with the normal reason,
+    only when the CONCLUDE response arrives. It waits for the RLRE, then requests the session release.
+    The responder answers a CONCLUDE request at once with a CONCLUDE response (Annex A.1.2.2), and
+    answers the RLRQ with a RLRE. It releases when the session release arrives. This end does not
+    reject a CONCLUDE; the Conclude-ErrorPDU path is not implemented. The first version sent the RLRQ
+    together with the request, which the reference peer did not answer; the interop scenario
+    recorded it (`docs/capabilities.md`).
   - Abort (ISO 9506-2 §24.4): the MMS abort has no PDU of its own. It is the presentation abort
-    without user data.
+    with no user data (task L6: the empty ARU PPDU of the first version was dropped, because the
+    User Data parameter is optional for a user abort, X.225 §8.3.9.6, and the empty PPDU is read as
+    an MMS PDU of zero bytes by a dissector).
 - **Known gaps**:
   - The services and parameter CBBs served are given by the caller (`Capabilities`). The TASE.2
     set is chosen with the client and server tasks, not here.

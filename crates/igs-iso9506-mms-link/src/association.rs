@@ -448,7 +448,16 @@ impl Association {
             return self.provider_abort();
         };
         if matches!(pdu, MMSpdu::ConcludeRequestPDU(_)) {
-            return vec![Action::ConcludeIndication];
+            // Answered at once, as the CONCLUDE response of the MMS user (accepting every request).
+            let response = match mms::encode(&MMSpdu::ConcludeResponsePDU(
+                igs_iso9506_mms_codec::mms::ConcludeResponsePDU(()),
+            )) {
+                Ok(bytes) => mms_user_data(bytes),
+                Err(_) => return vec![Action::Misuse("the CONCLUDE response does not encode")],
+            };
+            let mut out = vec![Action::ConcludeIndication];
+            out.extend(self.send_user_data(response));
+            return out;
         }
         if matches!(
             pdu,
@@ -462,6 +471,14 @@ impl Association {
         let (State::Open(session) | State::Concluding(session)) = self.state.clone() else {
             return self.provider_abort();
         };
+        // The initiator's CONCLUDE response triggers its ACSE release (Annex A.1.2.1).
+        if matches!(pdu, MMSpdu::ConcludeResponsePDU(_))
+            && self.state == State::Concluding(session.clone())
+        {
+            let mut out = vec![Action::Pdu(pdu)];
+            out.extend(self.release_request());
+            return out;
+        }
         let served = if is_request(&pdu) {
             &session.me
         } else {
@@ -478,14 +495,10 @@ impl Association {
     fn release_apdu(&mut self, apdu: ACSEApdu) -> Vec<Action> {
         match apdu {
             ACSEApdu::Rlrq(_) => {
+                // The CONCLUDE response went out when the request arrived; the ACSE release is
+                // answered now (ISO 9506-2 Annex A.1.2.2).
                 let State::Open(session) = self.state.clone() else {
                     return self.provider_abort();
-                };
-                let response = match mms::encode(&MMSpdu::ConcludeResponsePDU(
-                    igs_iso9506_mms_codec::mms::ConcludeResponsePDU(()),
-                )) {
-                    Ok(bytes) => mms_user_data(bytes),
-                    Err(_) => return vec![Action::Misuse("the CONCLUDE response does not encode")],
                 };
                 let rlre = match acse::encode(&ACSEApdu::Rlre(RLREApdu {
                     reason: Some(ReleaseResponseReason::NORMAL),
@@ -495,9 +508,7 @@ impl Association {
                     Err(_) => return vec![Action::Misuse("the RLRE does not encode")],
                 };
                 self.state = State::Answered(session);
-                let mut out = self.send_user_data(response);
-                out.extend(self.send_user_data(rlre));
-                out
+                self.send_user_data(rlre)
             }
             ACSEApdu::Rlre(_) => {
                 let State::Concluding(_) = self.state.clone() else {
@@ -551,6 +562,13 @@ impl Association {
             Ok(bytes) => mms_user_data(bytes),
             Err(_) => return vec![Action::Misuse("the CONCLUDE request does not encode")],
         };
+        // The ACSE release follows the CONCLUDE response, not the request (ISO 9506-2 Annex A.1.2.1).
+        self.state = State::Concluding(session);
+        self.send_user_data(request)
+    }
+
+    /// The initiator's ACSE release, sent once the CONCLUDE response is received (Annex A.1.2.1).
+    fn release_request(&mut self) -> Vec<Action> {
         let rlrq = match acse::encode(&ACSEApdu::Rlrq(RLRQApdu {
             reason: Some(ReleaseRequestReason::NORMAL),
             user_information: None,
@@ -558,10 +576,7 @@ impl Association {
             Ok(bytes) => acse_user_data(bytes),
             Err(_) => return vec![Action::Misuse("the RLRQ does not encode")],
         };
-        self.state = State::Concluding(session);
-        let mut out = self.send_user_data(request);
-        out.extend(self.send_user_data(rlrq));
-        out
+        self.send_user_data(rlrq)
     }
 }
 
