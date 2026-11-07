@@ -20,6 +20,9 @@ igs-iso9506-mms-link = { path = "../igs-iso9506-mms-link", version = "0.1.0" }
 # tokio: the same features as igs-iec104 (task T1, approved by the maintainer); `net` for TCP.
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time"] }
 
+# clap: the command line of the igsmms-client binary (task T3, MIT or Apache-2.0), derive only.
+clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+
 [dev-dependencies]
 # test-util: tokio::time::pause for the fake clock of the loopback tests.
 tokio = { version = "1", features = ["macros", "rt", "test-util"] }

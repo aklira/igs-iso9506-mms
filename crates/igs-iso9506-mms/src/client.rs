@@ -74,6 +74,12 @@ pub struct ClientConfig {
     pub command_capacity: usize,
     /// The capacity of the event channel.
     pub event_capacity: usize,
+    /// Whether the decoded actions of the connection and the calls are reported as [`Event::Trace`].
+    pub trace: bool,
+    /// Whether the parameter CBBs proposed are taken as negotiated for the outgoing checks, for a peer
+    /// that answers services without having negotiated their CBBs (`docs/capabilities.md`, G8). Off
+    /// by default: the standard's negotiation is the rule.
+    pub lenient_parameter_cbbs: bool,
 }
 
 impl ClientConfig {
@@ -85,6 +91,8 @@ impl ClientConfig {
             reconnect: Reconnect::default(),
             command_capacity: DEFAULT_CAPACITY,
             event_capacity: DEFAULT_CAPACITY,
+            trace: false,
+            lenient_parameter_cbbs: false,
         }
     }
 }
@@ -112,6 +120,8 @@ pub enum Event {
     State(ConnectionState),
     /// An unconfirmed report of the peer (an information report).
     Report(UnconfirmedService),
+    /// A decoded action of the connection, or a call, when tracing is on.
+    Trace(String),
 }
 
 /// The events of a client, in order.
@@ -138,6 +148,55 @@ pub(crate) enum Command {
     Close {
         reply: oneshot::Sender<Result<(), Error>>,
     },
+    /// Abort the association at once, answered on `reply`.
+    Abort {
+        reply: oneshot::Sender<Result<(), Error>>,
+    },
+}
+
+/// The parameter CBBs and the services in scope of the profile: every parameter CBB of the table, and
+/// every service whose `in_scope` flag is set, with the unconfirmed information report.
+pub fn in_scope_capabilities() -> Capabilities {
+    use igs_iso9506_mms_codec::generated::tables::{PARAMETER_SUPPORT_OPTIONS, SERVICES};
+    Capabilities {
+        parameter_cbb: bit_string(
+            PARAMETER_SUPPORT_OPTIONS
+                .iter()
+                .filter_map(|named| usize::try_from(named.position).ok()),
+        ),
+        services: bit_string(
+            SERVICES
+                .iter()
+                .filter(|service| service.in_scope)
+                .filter_map(|service| usize::try_from(service.bit.position).ok()),
+        ),
+    }
+}
+
+/// A bit string with the bits at these positions set, at least 96 bits long (ISO 9506-2 §8.1.3).
+fn bit_string(positions: impl Iterator<Item = usize>) -> igs_iso9506_mms_codec::schema::BitString {
+    let positions: Vec<usize> = positions.collect();
+    let length = positions
+        .iter()
+        .map(|position| position.saturating_add(1))
+        .max()
+        .unwrap_or(0)
+        .max(96);
+    let octets = length.div_ceil(8);
+    let mut bytes = vec![0u8; octets];
+    for position in positions {
+        let mask = 0x80u8
+            .checked_shr(u32::try_from(position & 7).unwrap_or(0))
+            .unwrap_or(0);
+        if let Some(byte) = bytes.get_mut(position >> 3) {
+            *byte |= mask;
+        }
+    }
+    let unused = octets.saturating_mul(8).saturating_sub(length);
+    igs_iso9506_mms_codec::schema::BitString {
+        unused: u8::try_from(unused).unwrap_or(0),
+        bytes,
+    }
 }
 
 /// A handle on an MMS client. Cloning it shares the connection.
@@ -196,6 +255,17 @@ impl Client {
         let (reply, answer) = oneshot::channel();
         self.commands
             .send(Command::Close { reply })
+            .await
+            .map_err(|_| Error::ClientClosed)?;
+        answer.await.map_err(|_| Error::ClientClosed)?
+    }
+
+    /// Aborts the association at once, without the release. For a client that has an error to leave
+    /// with, where the orderly close would wait for a release the peer may not confirm.
+    pub async fn abort(&self) -> Result<(), Error> {
+        let (reply, answer) = oneshot::channel();
+        self.commands
+            .send(Command::Abort { reply })
             .await
             .map_err(|_| Error::ClientClosed)?;
         answer.await.map_err(|_| Error::ClientClosed)?

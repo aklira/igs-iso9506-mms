@@ -16,7 +16,7 @@ use igs_iso9506_mms_codec::generated::types::{
     ConfirmedServiceRequest, ConfirmedServiceResponse, InitiateRequestPDUInitRequestDetail,
     ParameterSupportOptions, ServiceSupportOptions,
 };
-use igs_iso9506_mms_codec::mms::{InitiateRequestPDU, Integer16, Integer8};
+use igs_iso9506_mms_codec::mms::{InitiateRequestPDU, Integer16, Integer8, MMSpdu, Unsigned32};
 use igs_iso9506_mms_link::association::{self, MMS_VERSION};
 use igs_iso9506_mms_link::requests::{Action as RequestAction, Event as RequestEvent, Requests};
 use igs_iso9506_mms_link::transport::Role;
@@ -66,6 +66,11 @@ pub(crate) struct Actor<C: Connector> {
     queue: VecDeque<(ConfirmedServiceRequest, Reply)>,
     closing: Option<Closing>,
     done: bool,
+}
+
+/// An invoke ID as the requests layer keeps it.
+fn invoke_of(id: &Unsigned32) -> Option<u32> {
+    u32::try_from(id.0).ok()
 }
 
 /// The Initiate proposed for the configuration (ISO 9506-1 §8.2.1).
@@ -120,6 +125,7 @@ pub(crate) async fn establish<C: Connector>(
         config.link.clone(),
         config.capabilities.clone(),
     )?;
+    requests.set_lenient_parameter_cbbs(config.lenient_parameter_cbbs);
     let first = requests.handle(
         RequestEvent::Association(association::Event::Associate(proposal(config))),
         Duration::ZERO,
@@ -236,7 +242,8 @@ impl<C: Connector> Actor<C> {
     async fn command(&mut self, command: Command) {
         match command {
             Command::Request { service, reply } => self.queue.push_back((service, reply)),
-            Command::Close { reply } => self.start_close(reply).await,
+            Command::Close { reply } => self.start_close(reply, true).await,
+            Command::Abort { reply } => self.start_close(reply, false).await,
         }
     }
 
@@ -247,10 +254,11 @@ impl<C: Connector> Actor<C> {
             return;
         }
         let (reply, _) = oneshot::channel();
-        self.start_close(reply).await;
+        self.start_close(reply, true).await;
     }
 
-    async fn start_close(&mut self, reply: oneshot::Sender<Result<(), Error>>) {
+    /// Starts the end of the association: its CONCLUDE when `orderly`, else an abort at once.
+    async fn start_close(&mut self, reply: oneshot::Sender<Result<(), Error>>, orderly: bool) {
         if self.link.is_none() {
             let _ = reply.send(Ok(()));
             self.done = true;
@@ -261,7 +269,12 @@ impl<C: Connector> Actor<C> {
             reply,
             deadline: after(self.config.link.request_timeout),
         });
-        let actions = self.requests_handle(RequestEvent::Association(association::Event::Conclude));
+        let event = if orderly {
+            association::Event::Conclude
+        } else {
+            association::Event::Abort
+        };
+        let actions = self.requests_handle(RequestEvent::Association(event));
         self.dispatch(actions).await;
     }
 
@@ -278,6 +291,12 @@ impl<C: Connector> Actor<C> {
             let Some((service, reply)) = self.queue.pop_front() else {
                 break;
             };
+            if self.config.trace {
+                let _ = self
+                    .events
+                    .send(Event::Trace(format!("call {service:?}")))
+                    .await;
+            }
             let actions = self.requests_handle(RequestEvent::Request(service));
             let issued = actions.iter().find_map(|action| match action {
                 RequestAction::Requested(invoke) => Some(*invoke),
@@ -308,6 +327,9 @@ impl<C: Connector> Actor<C> {
         let mut work: VecDeque<RequestAction> = actions.into();
         let mut ending = None;
         while let Some(action) = work.pop_front() {
+            if self.config.trace && !matches!(action, RequestAction::Send(_)) {
+                let _ = self.events.send(Event::Trace(format!("{action:?}"))).await;
+            }
             match action {
                 RequestAction::Send(tsdu) => {
                     if let Some(link) = self.link.as_mut() {
@@ -316,19 +338,37 @@ impl<C: Connector> Actor<C> {
                     }
                 }
                 RequestAction::Response { invoke, response } => {
-                    self.answer(invoke, Ok(response));
+                    self.answer(Some(invoke), Ok(response));
                 }
                 RequestAction::Error { invoke, error } => {
-                    self.answer(invoke, Err(Error::Service(error)));
+                    self.answer(Some(invoke), Err(Error::Service(error)));
                 }
-                RequestAction::Timeout(invoke) => self.answer(invoke, Err(Error::Timeout)),
+                RequestAction::Timeout(invoke) => self.answer(Some(invoke), Err(Error::Timeout)),
                 RequestAction::Rejected {
                     invoke: Some(invoke),
                     reason,
-                } => self.answer(invoke, Err(Error::Rejected(reason))),
+                } => self.answer(Some(invoke), Err(Error::Rejected(reason))),
                 RequestAction::Indication { invoke, .. } => {
                     // This client serves no service: an indicated request is rejected as unrecognized.
                     work.extend(self.requests_handle(RequestEvent::RejectIndication(invoke)));
+                }
+                RequestAction::Unsupported(pdu) => {
+                    // The peer's answer breaks the negotiation: the caller is told, not left waiting.
+                    match pdu {
+                        MMSpdu::ConfirmedResponsePDU(response) => self.answer(
+                            invoke_of(&response.invoke_id),
+                            Err(Error::Misuse(
+                                "the answer is not allowed by the negotiation",
+                            )),
+                        ),
+                        MMSpdu::ConfirmedErrorPDU(error) => self.answer(
+                            invoke_of(&error.invoke_id),
+                            Err(Error::Misuse(
+                                "the answer is not allowed by the negotiation",
+                            )),
+                        ),
+                        _ => {}
+                    }
                 }
                 RequestAction::Unconfirmed(service) => {
                     let _ = self.events.send(Event::Report(service)).await;
@@ -347,8 +387,8 @@ impl<C: Connector> Actor<C> {
         }
     }
 
-    fn answer(&mut self, invoke: u32, result: Result<ConfirmedServiceResponse, Error>) {
-        if let Some(reply) = self.pending.remove(&invoke) {
+    fn answer(&mut self, invoke: Option<u32>, result: Result<ConfirmedServiceResponse, Error>) {
+        if let Some(reply) = invoke.and_then(|invoke| self.pending.remove(&invoke)) {
             let _ = reply.send(result);
         }
     }
@@ -458,6 +498,10 @@ impl<C: Connector> Actor<C> {
                         let _ = reply.send(Err(Error::ConnectionLost));
                     }
                     Some(Command::Close { reply }) => {
+                        let _ = reply.send(Ok(()));
+                        return false;
+                    }
+                    Some(Command::Abort { reply }) => {
                         let _ = reply.send(Ok(()));
                         return false;
                     }

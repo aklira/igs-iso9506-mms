@@ -14,7 +14,41 @@ criterion is fixed, or recorded here.
 | Abort by the user | Works; the peer closes the stream |
 | Conclude: CONCLUDE request, CONCLUDE response | Works |
 
+## Gaps found by the command line client (task T3)
+
+The bench transcript of the client is in `docs/ai-log/T3.md`. The reference server, when the command
+line is used with `--lenient-parameter-cbbs` for the variable services:
+
+| Command | Result |
+| --- | --- |
+| `identify` | Works: vendor, model and revision |
+| `names --class domain` | Works: the domain list |
+| `names --domain D` (named variables) | Refused locally by default (G8); with the option, the association ends (G9) |
+| `read`, `attributes`, `write` (with the option) | Works for a variable the server answers; data nested deeper than 2 is refused unless the client proposes more (G10) |
+
 ## Gaps
+
+- **G7, extra bits in the Initiate response.** The reference server sets services it was not offered
+  (`status`). ISO 9506-1 §8.2.1.1.8 says any additional bits received are ignored. The stack ignores
+  them and uses the intersection with the proposal (since task T3, D-018 and D-022). It was refused
+  before, which broke the connection.
+- **G8, parameter CBBs not negotiated.** The reference server answers an Initiate with an empty
+  parameter CBB (`str1`, `str2`, `vnam`, `valt`, `vlis` all False), yet it serves the services that
+  need them (`getNameList` on named variables, `read`). The stack follows the standard: a request
+  that needs an unnegotiated CBB is refused locally. The option `--lenient-parameter-cbbs` (CLI) and
+  `ClientConfig::lenient_parameter_cbbs` take the proposed CBBs as negotiated, for such a server. The
+  default is the standard.
+- **G9, identifiers longer than 32 characters.** The reference server lists IEC 61850 names of up to
+  39 characters (30 of them in one answer of a domain listing). ISO 9506-2 §7.5.2 limits an
+  identifier to 32 characters, and the codec refuses such an answer: the association then ends. This
+  is the gap recorded in C7 for the IEC 61850 phase.
+- **G10, data nested deeper than negotiated.** With a proposed nesting level of 2, the server answers
+  a `read` with data nested deeper than the level it negotiated, and the stack refuses the answer as
+  unsupported. The command line proposes a nesting level of 6 by default (`--nesting`). The library
+  default stays at the TASE.2 minimum of 2 (D-015).
+- **G11, data of a later edition.** The server sends a data value with tag 17 (utc-time), which the
+  Data choice of the profile's edition does not define. The stack keeps it raw, as an unsupported
+  alternative (decision D-004).
 
 - **G1, release by ACSE not answered by the peer.** After the CONCLUDE response, the peer does not
   answer the ACSE release (RLRQ): no RLRE, with or without the normal reason, in 3 seconds. The stack

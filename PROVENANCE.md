@@ -452,9 +452,10 @@ silent, to be confirmed by an observation test against other implementations.
       `service-CBB-insufficient`. Refusing an association that serves nothing is a choice of this
       implementation.
     - A negative proposal is refused with class `other`.
-  - Checks by the initiator: each negotiated value is within the proposal (versions, limits, nesting,
-    the CBBs and services as subsets); a response that is not is a protocol error, and the
-    association is aborted by the provider.
+  - Checks by the initiator: each negotiated value is within the proposal (versions, limits, nesting);
+    a response that is not is a protocol error, and the association is aborted by the provider. The
+    parameter CBBs and services of the response are reduced to those proposed, and any additional bit
+    is ignored (ISO 9506-1 §8.2.1.1.8; task T3, D-022).
   - Refusal: an AARE with result rejected-permanent, diagnostic 1 (no reason given) or 2
     (application context not supported), and the Initiate-ErrorPDU of a failed negotiation as its user
     information. It travels as the user data of a CPR, the presentation user rejection (X.226
@@ -617,6 +618,38 @@ silent, to be confirmed by an observation test against other implementations.
   link layers: one per service in scope and the identify, the service error, the event of a report, the
   queue at the limit, the close, the reconnection with the call in flight, no reconnection, a refused
   association, and the timeout on a paused clock.
+
+### D-022 — The command line client, and the interoperability found by it (task T3)
+
+- **Decision**:
+  - `igsmms-client` (`src/bin/igsmms-client.rs`) is a command line over the client API: `identify`,
+    `names`, `read`, `write`, `attributes`. `--trace` prints the decoded actions on standard error;
+    `--server`, `--timeout` and `--nesting` set the connection. Errors exit with status 1; a usage
+    error with status 2.
+  - Dependency `clap` 4 (MIT or Apache-2.0), with the derive feature only and no default features,
+    for the command line. Its transitive crates are the same licences, as `cargo deny` reports.
+  - The initiator reduces the peer's answer to the proposal: the parameter CBBs and the services that
+    are not proposed are ignored, as ISO 9506-1 §8.2.1.1.8 says (G7). Before, the association was
+    refused; the reference server does set `status`, which was not proposed.
+  - An answer that the negotiation does not allow (for example, data nested deeper than negotiated) is
+    rejected with a Reject PDU (ISO 9506-2 §6.4), and the caller is told at once, instead of waiting
+    for its timeout.
+  - `Client::abort` ends the association at once. The command line uses it after an error, because the
+    orderly close waits for a release that the reference server does not confirm (G1).
+  - The parameter CBBs proposed can be taken as negotiated for the outgoing checks, by the option
+    `ClientConfig::lenient_parameter_cbbs` and the flag `--lenient-parameter-cbbs`. It is off by
+    default: the standard's negotiation is the rule (G8).
+  - The command line proposes a nesting level of 6 by default (`--nesting`). The TASE.2 minimum of 2
+    of D-015 stays the library default; the reference server returns data deeper than 2 (G10).
+- **Sources**: ISO 9506-1 §8.2.1.1.8 (extra bits ignored), §8.2.1.2; ISO 9506-2 §6.4 (Reject of an
+  invalid PDU), §7.5.2 (identifiers of 32 characters, and the gap G9), §8.1.3 (CBBs); the reference
+  transcript of `docs/ai-log/T3.md`.
+- **Confidence**: high for the reduction of the answer and the Reject, which the clauses state; medium
+  for the lenient option, which is a deliberate departure from the standard for interoperability with
+  a non-conformant server; high for the observations, which are the transcript.
+- **Test**: `crates/igs-iso9506-mms-link/src/association.rs` (two unit tests: the extra bits ignored,
+  a value above the proposal refused), and the binary's own unit tests (the command line is valid, value
+  parsing, the display of data, the domains of names).
 
 ## Third-party code and sources
 
