@@ -396,7 +396,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | C5 ACSE APDUs | [x] |
 | C6 MMS common types | [x] |
 | C7 MMS PDUs | [x] |
-| C8 Property tests | [ ] |
+| C8 Property tests | [x] |
 | C9 Fuzzing | [ ] |
 | L1 Parameters | [ ] |
 | L2 COTP connection | [ ] |
