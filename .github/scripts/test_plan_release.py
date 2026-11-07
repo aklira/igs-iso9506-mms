@@ -45,6 +45,22 @@ class ReleaseTests(unittest.TestCase):
     def test_completed_release_is_a_noop(self):
         self.assertEqual(release.release_plan(self.root, self.tag, lambda *_: True, self.all_published), [])
 
+    def test_a_pushed_tag_is_the_release_tag(self):
+        self.assertEqual(release.release_tag({"GITHUB_REF_TYPE": "tag", "GITHUB_REF_NAME": self.tag}), self.tag)
+
+    def test_a_manual_run_releases_the_tag_it_names(self):
+        environ = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF_TYPE": "branch", "RELEASE_TAG": self.tag}
+        self.assertEqual(release.release_tag(environ), self.tag)
+
+    def test_a_manual_run_without_a_tag_is_refused(self):
+        environ = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF_TYPE": "branch", "RELEASE_TAG": ""}
+        with self.assertRaises(SystemExit):
+            release.release_tag(environ)
+
+    def test_a_branch_push_is_refused(self):
+        with self.assertRaises(SystemExit):
+            release.release_tag({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_TYPE": "branch", "GITHUB_REF_NAME": "main"})
+
     def test_wrong_tag_is_rejected_before_network_access(self):
         with self.assertRaises(ValueError), patch.object(release, "urlopen") as request:
             release.release_plan(self.root, "v9.9.9")

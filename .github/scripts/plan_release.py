@@ -72,10 +72,17 @@ def release_plan(root, tag, exists=published, external=published):
     return [name for name in CRATES if not exists(name, version)]
 
 
+def release_tag(environ):
+    """The tag to release: the tag that was pushed, or the tag that a manual run names (workflow_dispatch)."""
+    if environ.get("GITHUB_REF_TYPE") == "tag":
+        return environ["GITHUB_REF_NAME"]
+    if environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and environ.get("RELEASE_TAG"):
+        return environ["RELEASE_TAG"]
+    raise SystemExit("Publication requires a version tag, or a manual run that names the tag to release")
+
+
 if __name__ == "__main__":
-    if os.environ.get("GITHUB_REF_TYPE") != "tag":
-        raise SystemExit("Publication requires a version tag")
-    pending = release_plan(Path(__file__).resolve().parents[2], os.environ["GITHUB_REF_NAME"])
+    pending = release_plan(Path(__file__).resolve().parents[2], release_tag(os.environ))
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
         output.write(f"packages={' '.join(pending)}\n")
         output.write(f"publish={str(bool(pending)).lower()}\n")

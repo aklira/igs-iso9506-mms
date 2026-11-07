@@ -7,6 +7,12 @@ name: Publish to crates.io
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to publish, for example v1.0.0 (it must exist and be on main)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -31,12 +37,15 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
           fetch-depth: 0
           persist-credentials: false
       - name: Require a commit included in main
         run: git merge-base --is-ancestor HEAD origin/main
       - name: Plan release
         id: plan
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
         run: python3 .github/scripts/plan_release.py
       - name: Test release planning
         run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
@@ -79,6 +88,7 @@ jobs:
       - name: Checkout release tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
           persist-credentials: false
       - name: Authenticate with crates.io
         id: auth
