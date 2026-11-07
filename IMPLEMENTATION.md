@@ -392,7 +392,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | C1 BER | [x] |
 | C2 TPKT and COTP TPDUs | [x] |
 | C3 Session SPDUs | [x] |
-| C4 Presentation PPDUs | [ ] |
+| C4 Presentation PPDUs | [x] |
 | C5 ACSE APDUs | [ ] |
 | C6 MMS common types | [ ] |
 | C7 MMS PDUs | [ ] |
