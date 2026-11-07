@@ -44,6 +44,8 @@ pub enum Error {
     ClientClosed,
     /// The peer answered the request with the response of another service.
     Unexpected,
+    /// The TLS handshake of the connection failed, or its settings are not valid (task X1).
+    Tls(crate::tls::TlsError),
 }
 
 impl fmt::Display for Error {
@@ -63,6 +65,7 @@ impl fmt::Display for Error {
             Self::ConnectionLost => write!(f, "the connection ended before the answer"),
             Self::ClientClosed => write!(f, "the client is closed"),
             Self::Unexpected => write!(f, "the peer answered with another service"),
+            Self::Tls(error) => write!(f, "{error}"),
         }
     }
 }
@@ -71,6 +74,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
+            Self::Tls(error) => Some(error),
             Self::Config(error) => Some(error),
             _ => None,
         }

@@ -24,6 +24,7 @@ pub mod client;
 pub mod connector;
 pub mod error;
 pub mod server;
+pub mod tls;
 pub mod transport;
 pub mod vmd;
 

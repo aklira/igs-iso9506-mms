@@ -27,6 +27,11 @@ clap = { version = "4", default-features = false, features = ["std", "derive", "
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 
+# rustls with the ring provider, and tokio-rustls, for the TLS of the MMS stack (task X1, decision D-030): the
+# same choice as igs-iec104 (Apache-2.0, ISC, MIT). The aws-lc-rs provider is left out (it needs a C build).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12"] }
+
 [dev-dependencies]
 # test-util: tokio::time::pause for the fake clock of the loopback tests.
 tokio = { version = "1", features = ["macros", "rt", "test-util"] }

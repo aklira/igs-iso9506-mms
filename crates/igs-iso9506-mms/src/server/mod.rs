@@ -28,11 +28,12 @@ use igs_iso9506_mms_link::transport::Role;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
-use tokio::time::Instant;
+use tokio::time::{timeout, Instant};
 
 use crate::client::in_scope_capabilities;
 use crate::error::Error;
-use crate::transport::accept;
+use crate::tls::Secure;
+use crate::transport::{accept, ByteStream};
 use crate::vmd::Vmd;
 
 /// The associations a server holds at once; a connection beyond it is closed at once.
@@ -57,6 +58,8 @@ pub struct ServerConfig {
     pub capabilities: Capabilities,
     /// The associations at once; further connections are closed.
     pub max_associations: usize,
+    /// The TLS backend: when set, every connection runs its handshake before its association (task X1).
+    pub tls: Option<Secure>,
 }
 
 impl ServerConfig {
@@ -66,7 +69,14 @@ impl ServerConfig {
             link,
             capabilities: server_capabilities(),
             max_associations: DEFAULT_MAX_ASSOCIATIONS,
+            tls: None,
         }
+    }
+
+    /// Secures every connection with this TLS backend (task X1).
+    pub fn with_tls(mut self, backend: Secure) -> Self {
+        self.tls = Some(backend);
+        self
     }
 }
 
@@ -110,6 +120,7 @@ impl Server {
             capabilities: config.capabilities,
             calls,
             reports: reports.clone(),
+            tls: config.tls,
         };
         let limit = Arc::new(Semaphore::new(config.max_associations));
         let listener = tokio::spawn(accept_loop(listener, shared, stop_rx, limit));
@@ -147,6 +158,7 @@ struct Shared {
     capabilities: Capabilities,
     calls: mpsc::Sender<Call>,
     reports: broadcast::Sender<UnconfirmedService>,
+    tls: Option<Secure>,
 }
 
 impl Shared {
@@ -199,7 +211,8 @@ async fn accept_loop(
             accepted = listener.accept() => match accepted {
                 Ok((stream, _)) => match Arc::clone(&limit).try_acquire_owned() {
                     Ok(permit) => {
-                        tokio::spawn(association(stream, shared.clone(), stop.clone(), permit));
+                        let _ = stream.set_nodelay(true);
+                        tokio::spawn(connection(stream, shared.clone(), stop.clone(), permit));
                     }
                     // The server holds as many associations as it allows: the connection is closed.
                     Err(_) => drop(stream),
@@ -211,14 +224,32 @@ async fn accept_loop(
     }
 }
 
-/// One association: the transport connection, the requests of the responder, and the services.
-async fn association(
+/// One connection: its TLS handshake when the server is secured (within the connect timeout), then its
+/// association. A handshake that fails closes the connection.
+async fn connection(
     stream: TcpStream,
+    shared: Shared,
+    stop: watch::Receiver<bool>,
+    permit: OwnedSemaphorePermit,
+) {
+    match shared.tls.clone() {
+        None => association(stream, shared, stop, permit).await,
+        Some(secure) => {
+            let handshake = secure.backend().accept(stream);
+            if let Ok(Ok(secured)) = timeout(shared.link.connect_timeout, handshake).await {
+                association(secured, shared, stop, permit).await;
+            }
+        }
+    }
+}
+
+/// One association: the transport connection, the requests of the responder, and the services.
+async fn association<S: ByteStream>(
+    stream: S,
     shared: Shared,
     mut stop: watch::Receiver<bool>,
     _permit: OwnedSemaphorePermit,
 ) {
-    let _ = stream.set_nodelay(true);
     let Ok(mut transport) = accept(stream, shared.link.clone()).await else {
         return;
     };
