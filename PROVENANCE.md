@@ -577,6 +577,47 @@ silent, to be confirmed by an observation test against other implementations.
   the release, a slow receiver holding back the sender, the connect timeout on the paused clock, a
   peer that closes, a responder that declines, and an invalid configuration.
 
+### D-021 — The client API: connection, queue, events, reconnection, close (task T2)
+
+- **Decision**: `Client` (crate `igs-iso9506-mms`, module `client`) is a handle on a background task
+  (`actor.rs`) that owns the connection, the association and the requests of the link crate. The
+  task waits on three things at once: the calls, the TSDUs of the connection, and a one-second tick
+  that checks the request timeouts and the close.
+  - Services: `request` takes any confirmed request of the codec. The services in scope (the table of
+    the profile, `in_scope`) have typed methods: `identify`, `get_name_list`, `read`, `write`,
+    `get_variable_access_attributes`, `define_named_variable_list`, `get_named_variable_list_attributes`,
+    `delete_named_variable_list`. An answer of another service is `Unexpected`.
+  - Events: `Event::State` (connected, disconnected, reconnecting with the attempt number, closed) and
+    `Event::Report` (an information report). The first event is `Connected`.
+  - Back-pressure, documented in the client: a call waits while the command channel is full (its
+    capacity is `command_capacity`), and requests beyond the outstanding limit wait in a queue of the
+    same capacity; the event channel holds `event_capacity` events, and the task waits on it, so
+    that reports are never dropped.
+  - Outstanding limit: the requests are issued as the limit of the association allows (see D-019).
+  - Timeouts: a request with no answer within the request timeout of the configuration fails with
+    `Timeout`. The request stays outstanding in the link layer, so it still counts against the limit,
+    and a late answer is ignored. A peer that never answers blocks the requests at the limit; the
+    caller closes or reconnects.
+  - Reconnection: `Reconnect::Backoff { initial, max, attempts }`, doubling the delay up to `max`.
+    The default is 1 s to 30 s, with no bound on the attempts. `Reconnect::Never` closes the client.
+    A connection that ends fails the calls in flight with `ConnectionLost`; calls made while
+    reconnecting fail the same way. Each reconnection opens a new association with the same proposal.
+  - Close: the CONCLUDE request is sent, then the release is awaited. If the peer does not confirm it
+    within the request timeout, the association is aborted. This is the decision recorded for the gap G1
+    of `docs/capabilities.md`: the peer does not answer the ACSE release, and Annex A makes the
+    release a requirement, so the client falls back to the abort instead of waiting forever.
+  - An indicated request that the client does not serve is rejected as unrecognized-service (ISO 9506-1
+    §8.2.1.1.8).
+- **Sources**: ISO 9506-1 §8.2 (Initiate), §8.2.1.1.8; ISO 9506-2 §6.3, §7, §8.5, §8.6, §24.3 and
+  Annex A.1.2; the services of the profile table (`in_scope`).
+- **Confidence**: high for the services, the events and the queue, which the tests check; medium for
+  the reconnection defaults and the one-second tick, which are operational choices; medium for the close
+  fallback, which is a choice pending the peer's behaviour (G1).
+- **Test**: `crates/igs-iso9506-mms/tests/client.rs`, 16 tests against a loopback server built from the
+  link layers: one per service in scope and the identify, the service error, the event of a report, the
+  queue at the limit, the close, the reconnection with the call in flight, no reconnection, a refused
+  association, and the timeout on a paused clock.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

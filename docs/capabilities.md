@@ -19,9 +19,8 @@ criterion is fixed, or recorded here.
 - **G1, release by ACSE not answered by the peer.** After the CONCLUDE response, the peer does not
   answer the ACSE release (RLRQ): no RLRE, with or without the normal reason, in 3 seconds. The stack
   waits for the RLRE, as ISO 9506-2 Annex A.1.2.1 requires. The scenario therefore ends the
-  association with an abort after the CONCLUDE response. Decision for task T2: whether the client
-  treats the CONCLUDE response as the end of the association after a timeout. Not decided here, since
-  Annex A makes the RLRE a requirement.
+  association with an abort after the CONCLUDE response. Decided in task T2 (D-021): the client
+  closes by a CONCLUDE, and aborts when the release is not confirmed within the request timeout.
 - **G2, direction.** Only the stack as client was tested against the peer. The reference client
   connecting to this stack as server needs the server (phase S).
 - **G3, refused association.** No scenario checks a refusal by the peer. The refusal paths are

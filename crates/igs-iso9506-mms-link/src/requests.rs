@@ -80,6 +80,8 @@ pub enum Event {
     },
     /// Issue an unconfirmed service.
     Unconfirmed(UnconfirmedService),
+    /// Reject an indicated request that this end does not serve (unrecognized-service).
+    RejectIndication(u32),
     /// A lower event of the association.
     Association(association::Event),
     /// Time has passed: the timeouts are checked.
@@ -180,6 +182,18 @@ impl Requests {
         self.outgoing.len()
     }
 
+    /// Whether the association is established.
+    pub fn is_open(&self) -> bool {
+        self.association.is_open()
+    }
+
+    /// Whether a request may be issued now: the association is established and the outstanding limit
+    /// of this end is not reached.
+    pub fn can_request(&self) -> bool {
+        self.limits
+            .is_some_and(|limits| self.outgoing.len() < limits.outgoing)
+    }
+
     /// Takes an event at time `now`, and returns the actions it causes.
     pub fn handle(&mut self, event: Event, now: Duration) -> Vec<Action> {
         match event {
@@ -196,6 +210,15 @@ impl Requests {
                 self.lower(actions)
             }
             Event::Tick => self.tick(now),
+            Event::RejectIndication(invoke) => {
+                self.incoming.remove(&invoke);
+                self.reject(
+                    RejectPDURejectReason::ConfirmedRequestPDU(
+                        RejectPDURejectReasonConfirmedRequestPDU::UNRECOGNIZED_SERVICE,
+                    ),
+                    Some(invoke),
+                )
+            }
         }
     }
 
