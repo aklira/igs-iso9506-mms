@@ -383,6 +383,51 @@ silent, to be confirmed by an observation test against other implementations.
   roles and the octets passed by the test: establishment, negotiation, refusal, segmentation,
   reassembly with its bound, release, and each protocol error.
 
+### D-017 — Session and presentation connection, without user data
+
+- **Decision**: `upper::Connection` (crate `igs-iso9506-mms-link`, module `upper`) is a sans-I/O
+  state machine over the transport connection of D-016. Its TSDUs carry the SPDUs, and its user
+  data is empty in this task: the ACSE APDUs come with task L4.
+  - Connect: the CONNECT SPDU carries the CP PPDU in normal mode, with the calling and called
+    selectors of the configuration (session and presentation), the duplex functional unit, and
+    protocol version 2. The CP proposes two presentation contexts, both in the basic encoding:
+    ACSE (identifier 1) and MMS (identifier 3).
+  - Presentation context identifiers are odd (X.226 §6.2.2.7). The values 1 and 3 are an arbitrary
+    choice of this implementation, not taken from a clause.
+  - Responder, judged on receipt of the CONNECT:
+    - a called session selector that is not configured is refused by a REFUSE with reason 129,
+      session selector unknown (X.225 §8.3.5.10); no CPR;
+    - a called presentation selector that is not configured is refused by a REFUSE with reason 2,
+      carrying a CPR with provider reason 3, called presentation address unknown (X.226 §6.2.4.9);
+    - a CP that is not in normal mode is refused the same way, with provider reason 0;
+    - otherwise the responder indicates the connection and waits for the user.
+  - Accept: each proposed context is accepted when its abstract syntax is ACSE or MMS, and its
+    transfer syntaxes include the basic encoding. Otherwise it is a provider rejection: reason 1
+    (abstract syntax not supported) or 2 (proposed transfer syntaxes not supported) (X.226 §6.2.3
+    result list, and the reasons of its §6.2.4.9 list).
+  - Refuse by the user: a REFUSE with reason 2 carries a CPR with user rejection (result 1) for each
+    context and no provider reason (X.226 §6.2.5.6, §6.2.5.7).
+  - Release: FINISH with the transport kept (transport disconnect 0), answered at once by a
+    DISCONNECT from the other end, which is then released (X.225 §8.3.6, §8.3.7). This layer has no
+    user to wait for, so the answer is immediate.
+  - Abort: the user abort is an ABORT with the user bit and the transport-released bit, carrying an
+    empty ARU PPDU. A protocol error is an ABORT with the protocol-error bit and the transport-released
+    bit, without user data. An ABORT received counts as a user abort when its user bit is set.
+  - A TSDU of more than one SPDU is refused, as the basic concatenation of GIVE TOKENS and DATA
+    TRANSFER (X.225 §6.3.7) is not yet handled.
+- **Known gaps**, to close in the next tasks:
+  - DATA TRANSFER is refused as a protocol error. Data flows from task L4 (ACSE) and L5 (requests).
+  - The results of the CPA are returned to the upper layers unchecked: task L4 requires the ACSE
+    and MMS contexts to be accepted.
+- **Sources**: ITU-T X.225 §6.3.7, §8.3.1, §8.3.4, §8.3.5.10, §8.3.6, §8.3.7, §8.3.9; X.226 §6.2.2.7,
+  §6.2.3, §6.2.4.9, §6.2.5.5 to §6.2.5.8; ISO 9506-2 module ISO-9506-MMS-1 for the MMS abstract
+  syntax; X.690 basic-encoding for the transfer syntax.
+- **Confidence**: high for the reason codes and the provider reasons, which the clauses list; medium
+  for the policy of accepting contexts; low for the identifiers 1 and 3, which are a choice.
+- **Test**: `crates/igs-iso9506-mms-link/tests/upper.rs`, 15 tests on the transport connection of
+  D-016: the connection and its acceptance, each refusal, the release, the aborts from both ends, the
+  transport lost or timed out, protocol errors, misuse, and the judgement of each context.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

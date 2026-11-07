@@ -400,7 +400,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | C9 Fuzzing | [ ] |
 | L1 Parameters | [x] |
 | L2 COTP connection | [x] |
-| L3 Session and presentation connection | [ ] |
+| L3 Session and presentation connection | [x] |
 | L4 Association and Initiate | [ ] |
 | L5 Requests | [ ] |
 | L6 Interop of the stack | [ ] |
