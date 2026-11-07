@@ -7,6 +7,19 @@ are in [`docs/capabilities.md`](docs/capabilities.md).
 Written from the standards, with no code of other MMS implementations read (clean room). The licensed
 standard texts are not in this repository.
 
+## Architecture
+
+![Architecture of igs-iso9506-mms: the crates by layer, and their dependencies](docs/diagram.png)
+
+The diagram groups the crates by layer:
+
+- **Protocol codec**: the MMS types, checked against the protocol schema, and the ASN.1 runtime with its BER encoding.
+- **Client and server**: the async client and server, the connection actor, the TCP transport and the connection setup.
+- **TLS security**: the TLS profiles of IEC 62351-3 and their rustls backend.
+- **Association link**: the MMS association, its request handling, the session and presentation layers, the COTP transport and the
+  link negotiation.
+- **VMD services**: the MMS services over the VMD model, and its conformance checks.
+
 ## Quick start
 
 Requires Rust 1.85 or later.
