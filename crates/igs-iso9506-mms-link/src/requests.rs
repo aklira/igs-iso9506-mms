@@ -182,6 +182,12 @@ impl Requests {
         self.outgoing.len()
     }
 
+    /// Takes the parameter CBBs proposed as negotiated for the checks of outgoing PDUs (see
+    /// [`association::Association::set_lenient_parameter_cbbs`]).
+    pub fn set_lenient_parameter_cbbs(&mut self, on: bool) {
+        self.association.set_lenient_parameter_cbbs(on);
+    }
+
     /// Whether the association is established.
     pub fn is_open(&self) -> bool {
         self.association.is_open()
@@ -444,8 +450,35 @@ impl Requests {
                 ),
                 None,
             ),
+            // An answer that breaks the negotiation ends the request of this end: it is rejected, and
+            // reported to the caller as unsupported (ISO 9506-2 §6.4: a RejectPDU for an invalid PDU).
+            MMSpdu::ConfirmedResponsePDU(response) => {
+                let invoke = invoke_of(&response.invoke_id);
+                self.finish_unsupported(invoke, MMSpdu::ConfirmedResponsePDU(response))
+            }
+            MMSpdu::ConfirmedErrorPDU(error) => {
+                let invoke = invoke_of(&error.invoke_id);
+                self.finish_unsupported(invoke, MMSpdu::ConfirmedErrorPDU(error))
+            }
             other => vec![Action::Unsupported(other)],
         }
+    }
+
+    /// An answer to a request of this end that the negotiation does not allow: the request is over,
+    /// the answer is rejected, and the answer is reported as unsupported.
+    fn finish_unsupported(&mut self, invoke: Option<u32>, pdu: MMSpdu) -> Vec<Action> {
+        let Some(id) = invoke.filter(|id| self.outgoing.contains_key(id)) else {
+            return vec![Action::Unsupported(pdu)];
+        };
+        self.outgoing.remove(&id);
+        let mut actions = self.reject(
+            RejectPDURejectReason::ConfirmedResponsePDU(
+                RejectPDURejectReasonConfirmedResponsePDU::OTHER,
+            ),
+            Some(id),
+        );
+        actions.push(Action::Unsupported(pdu));
+        actions
     }
 
     /// One PDU of the other end, that the association allowed.

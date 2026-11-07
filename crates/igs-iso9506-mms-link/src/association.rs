@@ -156,6 +156,9 @@ pub struct Association {
     capabilities: Capabilities,
     upper: upper::Connection,
     state: State,
+    /// Whether the parameter CBBs proposed are taken as negotiated for the checks of outgoing PDUs,
+    /// for a peer that answers services whose CBBs it did not negotiate (`docs/capabilities.md`, G8).
+    lenient_parameter_cbbs: bool,
 }
 
 impl Association {
@@ -172,7 +175,14 @@ impl Association {
             capabilities,
             upper,
             state: State::Idle,
+            lenient_parameter_cbbs: false,
         })
+    }
+
+    /// Takes the parameter CBBs proposed as negotiated for the checks of outgoing PDUs. Off by default:
+    /// the peer's answer is what the standard says is negotiated. See `docs/capabilities.md`, G8.
+    pub fn set_lenient_parameter_cbbs(&mut self, on: bool) {
+        self.lenient_parameter_cbbs = on;
     }
 
     /// Whether the association is established.
@@ -409,7 +419,7 @@ impl Association {
         }
         self.state = State::Open(Session {
             me: Negotiated::served_by_calling(&request, &response),
-            peer: Negotiated::served_by_called(&response),
+            peer: self.peer_view(&request, &response),
         });
         vec![Action::Established(response)]
     }
@@ -679,14 +689,6 @@ fn response_within_request(request: &InitiateRequestPDU, response: &InitiateResp
         && response.negotiated_max_serv_outstanding_called.0
             <= request.proposed_max_serv_outstanding_called.0
         && nesting_ok
-        && subset(
-            &reply.negotiated_parameter_cbb.0,
-            &detail.proposed_parameter_cbb.0,
-        )
-        && subset(
-            &reply.services_supported_called.0,
-            &detail.services_supported_calling.0,
-        )
 }
 
 fn refusal(class: ServiceErrorErrorClassInitiate) -> ServiceError {
@@ -854,8 +856,35 @@ fn intersect(a: &BitString, b: &BitString) -> BitString {
     }
 }
 
-fn subset(a: &BitString, b: &BitString) -> bool {
-    (0..length(a)).all(|index| !a.bit(index) || b.bit(index))
+impl Association {
+    /// The peer's view of the association; see [`reduced_to_proposal`], and the lenient option.
+    fn peer_view(
+        &self,
+        request: &InitiateRequestPDU,
+        response: &InitiateResponsePDU,
+    ) -> Negotiated {
+        let mut peer = reduced_to_proposal(request, response);
+        if self.lenient_parameter_cbbs {
+            peer.parameters = request.init_request_detail.proposed_parameter_cbb.0.clone();
+        }
+        peer
+    }
+}
+
+/// The peer's view of the association, reduced to what was proposed. ISO 9506-1 §8.2.1.1.8: any
+/// additional bits received are ignored, so a peer that sets a service it was not offered is not
+/// refused, and that service is not used.
+fn reduced_to_proposal(request: &InitiateRequestPDU, response: &InitiateResponsePDU) -> Negotiated {
+    let mut peer = Negotiated::served_by_called(response);
+    peer.services = intersect(
+        &peer.services,
+        &request.init_request_detail.services_supported_calling.0,
+    );
+    peer.parameters = intersect(
+        &peer.parameters,
+        &request.init_request_detail.proposed_parameter_cbb.0,
+    );
+    peer
 }
 
 fn any(a: &BitString) -> bool {
@@ -867,4 +896,76 @@ fn length(a: &BitString) -> usize {
         .len()
         .saturating_mul(8)
         .saturating_sub(usize::from(a.unused))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use igs_iso9506_mms_codec::generated::types::{
+        InitiateRequestPDUInitRequestDetail, InitiateResponsePDUInitResponseDetail,
+    };
+
+    /// A bit string with the bits at these positions set, 96 bits long.
+    fn bits(positions: &[usize]) -> BitString {
+        let mut bytes = vec![0u8; 12];
+        for &position in positions {
+            if let Some(byte) = bytes.get_mut(position / 8) {
+                *byte |= 0x80 >> (position % 8);
+            }
+        }
+        BitString { unused: 0, bytes }
+    }
+
+    fn request(services: &[usize], parameters: &[usize]) -> InitiateRequestPDU {
+        InitiateRequestPDU {
+            local_detail_calling: None,
+            proposed_max_serv_outstanding_calling: Integer16(8),
+            proposed_max_serv_outstanding_called: Integer16(8),
+            proposed_data_structure_nesting_level: Some(Integer8(6)),
+            init_request_detail: InitiateRequestPDUInitRequestDetail {
+                proposed_version_number: Integer16(MMS_VERSION),
+                proposed_parameter_cbb: ParameterSupportOptions(bits(parameters)),
+                services_supported_calling: ServiceSupportOptions(bits(services)),
+                additional_supported_calling: None,
+                additional_cbb_supported_calling: None,
+                privilege_class_identity_calling: None,
+            },
+        }
+    }
+
+    fn response(services: &[usize], parameters: &[usize]) -> InitiateResponsePDU {
+        InitiateResponsePDU {
+            local_detail_called: None,
+            negotiated_max_serv_outstanding_calling: Integer16(5),
+            negotiated_max_serv_outstanding_called: Integer16(5),
+            negotiated_data_structure_nesting_level: Some(Integer8(2)),
+            init_response_detail: InitiateResponsePDUInitResponseDetail {
+                negotiated_version_number: Integer16(MMS_VERSION),
+                negotiated_parameter_cbb: ParameterSupportOptions(bits(parameters)),
+                services_supported_called: ServiceSupportOptions(bits(services)),
+                additional_supported_called: None,
+                additional_cbb_supported_called: None,
+                privilege_class_identity_called: None,
+            },
+        }
+    }
+
+    #[test]
+    fn the_peers_extra_bits_are_ignored_not_refused() {
+        // The peer sets service 0 and parameter 5, which were not proposed (ISO 9506-1 §8.2.1.1.8).
+        let proposal = request(&[1, 2], &[0, 1]);
+        let answer = response(&[0, 1, 2], &[0, 5]);
+        let peer = reduced_to_proposal(&proposal, &answer);
+        assert_eq!(peer.services.bytes, bits(&[1, 2]).bytes);
+        assert_eq!(peer.parameters.bytes, bits(&[0]).bytes);
+        assert!(response_within_request(&proposal, &answer));
+    }
+
+    #[test]
+    fn a_value_above_the_proposal_is_still_refused() {
+        let proposal = request(&[1], &[0]);
+        let mut answer = response(&[1], &[0]);
+        answer.negotiated_max_serv_outstanding_calling = Integer16(9);
+        assert!(!response_within_request(&proposal, &answer));
+    }
 }
