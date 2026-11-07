@@ -32,11 +32,19 @@ Captures stay in `captures/`, which git ignores.
 The reference server publishes its port 102 on `127.0.0.1:10102`, so that the stack run on the host
 can reach it (task L6). Run the scenarios with `MMS_PEER=127.0.0.1:10102`.
 
+## Device under test (`igsmms-server`)
+
+The server of this repository runs as the device under test (task S3): `bench/device/demo.toml`, served
+by a static binary built on the host and mounted in a Debian container at `172.31.102.30`. The reference
+client runs its commands against it: `bench/tests/test_s3_device.py`. Build the binary first, as
+`docs/igsmms-server.md` says (the musl target, `rustup target add x86_64-unknown-linux-musl`). The
+binary is built from this repository's code and is not part of the reference peer.
+
 ## Layout
 
 | Path | Content |
 | --- | --- |
-| `docker-compose.yml` | Reference server, reference client, capture container |
+| `docker-compose.yml` | Reference server, reference client, capture container, device under test and its capture |
 | `peer/Dockerfile` | Build of the reference peer |
 | `igs_bench/compose.py` | Wrapper over the compose engine |
 | `igs_bench/capture.py` | Stops `tcpdump` and returns the capture |

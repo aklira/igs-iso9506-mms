@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 The igs-iso9506-mms contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# The VMD served by `igsmms-server` in the bench (task S3): the device under test. Format: docs/igsmms-server.md.
+
+[identity]
+vendor = "igs"
+model = "igsmms demo"
+revision = "0.1"
+
+[[domain]]
+name = "demo"
+
+[[variable]]
+name = "speed"
+type = "integer"
+bits = 32
+value = 5
+writable = true
+
+[[variable]]
+domain = "demo"
+name = "temperature"
+type = "float"
+value = 21.5
+writable = false
+
+[[variable]]
+domain = "demo"
+name = "status"
+type = "boolean"
+value = true
+writable = true
+
+[[variable]]
+domain = "demo"
+name = "label"
+type = "visible-string"
+size = 3
+value = "igs"
+writable = true
+
+[[list]]
+name = "snapshot"
+domain = "demo"
+members = ["speed", "demo/temperature"]

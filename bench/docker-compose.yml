@@ -49,6 +49,38 @@ services:
     volumes:
       - ./captures:/captures
 
+  # The device under test (task S3): igsmms-server, built as a static binary on the host (bench/README.md)
+  # and mounted here, so that the reference client can run its services against this repository's server.
+  device:
+    image: docker.io/library/debian:bookworm-slim
+    command: ["/usr/local/bin/igsmms-server", "--listen", "0.0.0.0:102", "--config", "/etc/igsmms/demo.toml"]
+    volumes:
+      - ../target/x86_64-unknown-linux-musl/release/igsmms-server:/usr/local/bin/igsmms-server:ro
+      - ./device/demo.toml:/etc/igsmms/demo.toml:ro
+    ports:
+      - "127.0.0.1:10103:102"
+    networks:
+      bench:
+        ipv4_address: 172.31.102.30
+
+  # Shares the network namespace of the device, as `capture` does for the reference server.
+  device-capture:
+    image: docker.io/nicolaka/netshoot@sha256:a20c2531bf35436ed3766cd6cfe89d352b050ccc4d7005ce6400adf97503da1b
+    network_mode: "service:device"
+    depends_on:
+      - device
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      BENCH_CAPTURE: ${BENCH_CAPTURE:-bench.pcap}
+    command:
+      - sh
+      - -c
+      - tcpdump -i any -U --immediate-mode -Z root -w "/captures/$$BENCH_CAPTURE" tcp port 102 & exec sleep infinity
+    volumes:
+      - ./captures:/captures
+
 networks:
   bench:
     ipam:

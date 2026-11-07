@@ -410,7 +410,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | T4 Client interop matrix | [x] |
 | S1 VMD model | [x] |
 | S2 Server | [x] |
-| S3 `igsmms-server` binary | [ ] |
+| S3 `igsmms-server` binary | [x] |
 | S4 Server interop and load | [ ] |
 | X1 TLS | [ ] |
 | X2 Documentation and examples | [ ] |

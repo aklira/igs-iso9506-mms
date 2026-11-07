@@ -14,6 +14,21 @@ criterion is fixed, or recorded here.
 | Abort by the user | Works; the peer closes the stream |
 | Conclude: CONCLUDE request, CONCLUDE response | Works |
 
+## Device under test (task S3)
+
+`igsmms-server` (`docs/igsmms-server.md`) serves the file `bench/device/demo.toml`. The reference client
+ran these commands against it, and this repository's client ran the commands of `igsmms-client`:
+
+| Command | Reference client (`mms_utility`) | Result |
+| --- | --- | --- |
+| identify | `-i` | Works: vendor, model and revision |
+| domain list | `-d` | Works |
+| variable list of the domain | `-t demo` | The three variables are listed; then G14 |
+| read of a float, a boolean, a visible string | `-a demo -r ...` | Works |
+
+Checked by `bench/tests/test_s3_device.py`: the services 1, 2 and 4 are on the wire in both directions,
+and the capture decodes with no malformed frame apart from the release artefact (G6).
+
 ## Server (task S2)
 
 Served by `igs_iso9506_mms::Server` (D-026), checked by `crates/igs-iso9506-mms/tests/server.rs` with this
@@ -133,8 +148,19 @@ line is used with `--lenient-parameter-cbbs` for the variable services:
   waits for the RLRE, as ISO 9506-2 Annex A.1.2.1 requires. The scenario therefore ends the
   association with an abort after the CONCLUDE response. Decided in task T2 (D-021): the client
   closes by a CONCLUDE, and aborts when the release is not confirmed within the request timeout.
-- **G2, direction.** Only the stack as client was tested against the peer. The reference client
-  connecting to this stack as server needs the server (phase S).
+- **G2, direction.** Tested in both directions since task S3: the reference client runs its commands
+  against this repository's server (`bench/tests/test_s3_device.py`, transcript in `docs/ai-log/S3.md`):
+  identify, the domain list, the variable list and reads. The reference client's journal query is refused
+  (G14).
+- **G13, legacy application context.** The reference client proposes the application context
+  `1.0.9506.2.3`, the arc of the MMS annex module, not the one of ISO 9506-2 Annex A.7 (`1.0.9506.2.5`).
+  The responder accepts both, and answers with the name it was proposed (D-027). The initiator still
+  proposes only `1.0.9506.2.5`. Before S3 the server refused the reference client with
+  application-context-name-not-supported.
+- **G14, journals.** The reference client, asked for the variables of a domain (`mms_utility -t`), then asks
+  for its journals. The server does not hold the journal class: it answers with a service error, and the
+  client reports `Failed to read domain journals (error=82)` and exits with status 82. The variables are
+  listed before that error. The journal class is outside the model (`docs/capabilities.md`, S1).
 - **G3, refused association.** No scenario checks a refusal by the peer. The refusal paths are
   covered by the loopback tests of task L4.
 - **G4, services beyond Identify.** Closed by the matrix of task T4 (above) for the nine services in scope,

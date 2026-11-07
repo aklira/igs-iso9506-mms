@@ -756,6 +756,39 @@ silent, to be confirmed by an observation test against other implementations.
   loopback: each service in scope, the paging, the errors, a report, five clients at once, the association
   limit, and the shutdown.
 
+### D-027 — The responder accepts the application context of the MMS annex arc (task S3)
+
+- **Decision**: the responder accepts the application context names `1.0.9506.2.5` (the one of ISO 9506-2
+  Annex A.7) and `1.0.9506.2.3` (the arc of the MMS annex module), and answers with the name it was
+  proposed. The initiator proposes `1.0.9506.2.5` only. Any other name is refused with diagnostic 2, as before.
+- **Why**: the reference client of the bench proposes `1.0.9506.2.3`. Its association was refused by the
+  server, which made the device unreachable for the reference client (G13). Implementations of IEC 61850 in
+  the field use that name, so the server must accept it to be used with them.
+- **Sources**: ISO 9506-2 Annex A.7 (the name `mms-application-context-version1(5)`, `1.0.9506.2.5`), and the
+  transcript of the bench (`docs/ai-log/S3.md`), which shows the proposal. The arc `1.0.9506.2.3` is the
+  MMS annex module (ISO 9506-2 Annex A, module arc 3), which the standard does not define as an application
+  context: the acceptance is a deliberate departure for interoperability.
+- **Confidence**: high for the observation (the refusal and the proposal, on the wire); medium for the
+  reading of the arc, which the clause states as a module, not as a context name.
+- **Test**: `crates/igs-iso9506-mms-link/tests/association.rs`, `a_responder_accepts_the_legacy_context_and_answers_with_it`;
+  the refusal of another name, `an_unknown_application_context_is_refused_with_its_diagnostic`, still holds.
+
+### D-028 — The demonstration server: TOML, one static binary, the bench device (task S3)
+
+- **Decision**: `igsmms-server` is a binary of the crate `igs-iso9506-mms` (`src/bin/igsmms-server.rs`). It reads
+  a TOML file (`serde`, `toml`: MIT or Apache-2.0) that describes the identity, the domains, the variables and
+  the lists; each object is checked as the model checks it, and the server does not start on an invalid file.
+  Unknown keys are refused. The bench runs a static binary (musl target), mounted in a Debian container, so
+  that the binary built on the host (glibc 2.43) runs on the bench image (glibc 2.36).
+- **Why**: the device under test must be a real MMS server that the reference client reaches over the network,
+  and a TOML file is the simplest honest description of its objects.
+- **Not decided here**: the file format is a demonstration format, not a standard one, and may change before
+  the 1.0 release (X2 documents it).
+- **Confidence**: high (the transcripts of `docs/ai-log/S3.md`).
+- **Tests**: unit tests of the binary (the demo file builds the VMD it describes; a value out of its type, an
+  unknown key, a missing member, a negative unsigned, a missing size are refused), and the bench run
+  `bench/tests/test_s3_device.py`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
