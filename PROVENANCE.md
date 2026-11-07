@@ -300,7 +300,9 @@ silent, to be confirmed by an observation test against other implementations.
   the AP-title, the TPDU size, the timeouts and the limits proposed in the association. `validate`
   refuses a value outside the bounds below; the first refused value is returned.
   - Bounds:
-    - transport selector: at most 255 octets; a present selector is never empty;
+    - transport selector: at most 243 octets alone, and 241 for the two together, so that the
+      connection request fits its length indicator of 254 octets (X.224 §13.2.1);
+      a present selector is never empty;
     - session selector: at most 16 octets;
     - presentation selector: at most 16 octets;
     - AP-title: an object identifier of at least two arcs, the first at most 2, and the second
@@ -320,10 +322,11 @@ silent, to be confirmed by an observation test against other implementations.
     (X.225 table of CN parameters; X.226 §6.2.2.3, §6.2.2.5). To be checked against the reference
     peer in task L6; if it refuses an omitted selector, the default changes and this entry is
     updated.
-  - TPDU size 8192: the largest size the X.224 parameter codes (§13.3.4 b), and the size that the
-    reference client of the bench proposes (task F5, observed). RFC 2126 gives a default of 65 531
-    octets, which the X.224 parameter cannot code; the proposal is therefore the largest coded
-    size, and L2 settles the size the peer confirms.
+  - TPDU size 8192: the size that the reference client of the bench proposes and the reference
+    server confirms (task F5, observed). X.224 §13.3.4 b) marks 4096 and 8192 octets as not allowed
+    in class 0. The transport of 9506-1 Annex F and of 6-702 is RFC 1006 or RFC 2126, which allow
+    larger TPDUs (RFC 2126 gives 65 531 octets as the maximum and the default). The proposal follows
+    the peer; the connection accepts up to 8192 and settles the size used (D-016).
   - Nesting level 2: the TASE.2 minimum (6-702, stack requirements). A larger proposal would claim
     a depth that the decoders do not yet check against the negotiated value; the level is revisited
     in task L4.
@@ -339,6 +342,46 @@ silent, to be confirmed by an observation test against other implementations.
   timeouts, which are operational.
 - **Test**: `crates/igs-iso9506-mms-link/tests/config.rs` (14 tests: defaults, each bound at its
   edge, and each refused value).
+
+### D-016 — Class 0 transport connection
+
+- **Decision**: `Connection` (crate `igs-iso9506-mms-link`, module `transport`) is a sans-I/O state
+  machine for one role. `handle(event, now)` takes an event (connect, octets received, TSDU to
+  send, release, tick) and returns actions (octets to write, a TSDU to deliver, opened, closed,
+  misuse). Time is a duration from any origin the caller chooses.
+  - Establishment:
+    - the CR has class 0, options 0, credit 0, no user data, reference 1 as source, zero as
+      destination, the configured selectors, and the proposed TPDU size;
+    - the responder declines a CR with a DR whose source reference is zero (X.224 §13.3.4 and the
+      rule on unassigned references), with reason NOT_SPECIFIED when the class, options, credit or
+      user data is not class 0's, and ADDRESS_UNKNOWN when the configured called selector differs;
+    - the agreed size is the smaller of the proposed size and the responder's maximum; an absent
+      size is the default of 128 octets (X.224 §13.3.4 b);
+    - the initiator accepts a CC with its own reference as destination, class 0, options 0, credit
+      0, no user data, and a size not above the proposed one; an absent size means 128;
+    - the connect timeout runs from the CR; its expiry closes the connection.
+  - Data transfer:
+    - a DT TPDU has the length indicator, the code and the EOT octet, so it carries the agreed size
+      minus three octets (X.224 §13.7.1); the number is zero, as class 0 has no sequence;
+    - a TSDU is segmented into DT TPDUs with EOT on the last, and all but the last carry data
+      (X.224 §6.3.3); an empty TSDU is one DT with EOT and no data;
+    - reassembly is bounded: `MAX_TSDU` is 1 048 576 octets. A DT with more than the agreed size,
+      an empty DT without EOT, or a TSDU above the bound closes the connection with a protocol error.
+  - Release: class 0 releases implicitly, with the network connection (X.224 §5.4.4). A local
+    release sends nothing; a DR from the peer while open closes without a reply.
+  - Errors: a TPDU that does not decode, or whose type the state does not allow, gets an ER TPDU.
+    Its cause is the reject cause of X.224 §13.12.3. It quotes the TPDU up to the octet in fault,
+    which is the code for an unexpected type, and at most 248 octets otherwise. A broken TPKT
+    framing closes without a reply, since no TPDU can be sent on it.
+  - A call in the wrong state (connect, send) returns `Misuse` and changes nothing.
+- **Sources**: ITU-T X.224 §5.4.4, §6.3.3, §8.2.3, §13.2.1, §13.3, §13.3.4, §13.7.1, §13.12; RFC 1006
+  and RFC 2126 for the TCP environment, as read on the web.
+- **Confidence**: high for segmentation, the bounds and the release; medium for the reading of an
+  absent size in a CC as 128 (RFC 2126 gives 65 531 as the default; to be checked against the peer in
+  L6), and for the value of the reference, which only has to be non-zero.
+- **Test**: `crates/igs-iso9506-mms-link/tests/transport.rs`, 23 tests on a fake clock, with both
+  roles and the octets passed by the test: establishment, negotiation, refusal, segmentation,
+  reassembly with its bound, release, and each protocol error.
 
 ## Third-party code and sources
 

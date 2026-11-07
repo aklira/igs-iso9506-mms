@@ -399,7 +399,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | C8 Property tests | [x] |
 | C9 Fuzzing | [ ] |
 | L1 Parameters | [x] |
-| L2 COTP connection | [ ] |
+| L2 COTP connection | [x] |
 | L3 Session and presentation connection | [ ] |
 | L4 Association and Initiate | [ ] |
 | L5 Requests | [ ] |
