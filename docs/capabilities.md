@@ -14,6 +14,15 @@ criterion is fixed, or recorded here.
 | Abort by the user | Works; the peer closes the stream |
 | Conclude: CONCLUDE request, CONCLUDE response | Works |
 
+## Server model: the VMD (task S1)
+
+The model of the VMD in `igs_iso9506_mms::vmd` (D-025). Held: domains, named variables at the VMD and
+domain scopes, named variable lists. Not held, and refused as unsupported: named types, unnamed
+variables, application association-specific names, access control lists, and the other classes of the
+VMD (program invocations, event objects, journals, semaphores, data exchanges, operator stations, unit
+controls). A reference to one of them is `object-non-existent` or `object-access-unsupported` in a
+service, never a silent success.
+
 ## Client matrix against the reference server (task T4)
 
 The scenarios are `crates/igs-iso9506-mms/tests/interop_matrix.rs`, run by

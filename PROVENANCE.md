@@ -686,6 +686,45 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high for the observations, which are the captured traffic.
 - **Test**: the matrix itself, with the bench test above.
 
+### D-025 — The VMD model: names, scopes, conformance, lists (task S1)
+
+- **Decision**: the model lives in `crates/igs-iso9506-mms/src/vmd/`, public as `igs_iso9506_mms::vmd`. It
+  holds the VMD, its domains, the named variables (VMD and domain scope), and the named variable lists.
+  - **Names**: an identifier of 1 to 32 characters, each accepted by the codec (`is_identifier_char`).
+    A reference is VMD-specific or domain-specific; an application association-specific name is refused as
+    unsupported (ISO 9506-2 §7.5).
+  - **Access through a trait**: `Variable` (type description, writable, read, write) is what an application,
+    TASE.2 or IEC 61850 implements. `MemoryVariable` is the simple object. The model checks, in order: the
+    existence (object-non-existent), the write permission (object-access-denied), then the type
+    (type-inconsistent), and only then calls the variable (ISO 9506-2 §14.1.1, §14.1.3).
+  - **Conformance** (`conform.rs`, ISO 9506-2 §14.2.2.4): a size that is not negative is a fixed length; a
+    negative size is a maximum (§14.2.2.4.2). INTEGER and UNSIGNED fit their bits; a floating-point value
+    has the exponent width of the type and the octets of its format (§14.4.2.2, the codec's form); a binary
+    time has four or six octets according to the date; BCD has at most its digits. A named type is not held,
+    so a value under it does not conform; a value that the model does not hold (a boolean array, an
+    unsupported alternative) does not conform either. This is a conservative choice, to revisit if a
+    device needs those types.
+  - **Lists**: a list is a sequence of references (ISO 9506-2 §14.1.4). Its members must exist when it is
+    defined. A list may be empty: the grammar of DefineNamedVariableList allows zero members; the reference
+    server refuses an empty list (`docs/capabilities.md`, G12), which is the peer's choice. A member removed
+    by local action fails alone in a read of the list (per-member results, §14.1.4).
+  - **Deletion**: the model removes a variable by local action (`remove_variable`, §7.4.6); it does not
+    count the lists of a request. The server counts matched and deleted lists from the per-list results.
+  - **Single owner**: the model is not shared between tasks. The server gives it to one task, which runs the
+    services in turn (S2). Writes take `&mut self` and `Variable::write` takes `&mut self`.
+- **Not modelled** (and recorded in `docs/capabilities.md`): named types, unnamed variables (the address
+  scheme), application association-specific names, access control lists, the other classes of the VMD
+  (domains beyond their names, program invocations, event objects, journals).
+- **Sources**: ISO 9506-1 §7.4 (scopes, lifetime, visibility, deletion by local action), §7.5 (object names),
+  §14.1 (variable access, named variables, named variable lists), §14.2.2.4 (simple types and sizes); ISO
+  9506-2 §7.5, §14.4, §14.12 (the grammar of DefineNamedVariableList), and the codec's own types.
+- **Confidence**: high for the names, the scopes and the order of checks, which the clauses state; medium
+  for the handling of sizes as maxima, which follows §14.2.2.4.2 directly; medium for the empty list, which
+  the grammar allows but the reference server refuses.
+- **Tests**: the unit tests of `vmd/` (names, conformance per type, variables), the property tests of
+  `tests/vmd_properties.rs` (identifier lengths, integer and unsigned bounds, sizes, and the model against a
+  reference model over random sequences of operations).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
