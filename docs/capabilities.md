@@ -4,6 +4,79 @@ What the stack does, and what it does not, as observed against the reference pee
 (task L6, `bench/tests/test_l6_interop.py`) or as decided. Rule 10 of `IMPLEMENTATION.md`: a failing
 criterion is fixed, or recorded here.
 
+## Supported services and CBBs (task X3)
+
+The services of the profile, with the test that covers each row: a test named in a row must exist. The
+checker `crates/igs-iso9506-mms/tests/capabilities_matrix.rs` reads this section and fails if a name is
+missing. "Client" and "server" are the two ends of this repository. "Bench" is the reference peer
+(libiec61850) against this repository's end, run by the bench tests. A gap is recorded in the last column,
+and in the sections below.
+
+<!-- matrix:begin -->
+
+| Service (tag) | Client | Server | Bench | Gaps |
+| --- | --- | --- | --- | --- |
+| Identify (2) | `identify_is_answered_with_the_identity_of_the_peer`, `a_confirmed_identify_is_answered_by_the_reference_server` | `identify_is_answered_with_the_identity_of_the_server` | `test_stack_identifies_and_aborts_with_the_reference_server`, `test_the_reference_client_runs_its_services_against_the_device` | none |
+| GetNameList (1), domains | `get_name_list_returns_the_names` | `get_name_list_lists_the_domains` | `test_the_client_runs_every_service_in_scope_against_the_reference_server`, `test_the_reference_client_matrix_against_the_device` | none |
+| GetNameList (1), named variables, paged | `get_name_list_returns_the_names` | `get_name_list_pages_through_the_named_variables`, `get_name_list_of_a_domain_lists_its_variables` | `test_reference_clients_run_the_services_in_scope` | G8 (refused by default), G9 (identifiers over 32 characters, peer side) |
+| GetNameList (1), journals | none | none | `test_the_reference_client_matrix_against_the_device` | G14: the peer asks for journals; the server answers with an error |
+| Read (4) | `read_returns_the_values` | `read_returns_the_value_and_fails_per_item` | `test_the_client_runs_every_service_in_scope_against_the_reference_server`, `test_the_reference_client_matrix_against_the_device` | G8 for the peer's default; addresses and alternate access not served |
+| Write (5) | `write_returns_the_result_of_each_item` | `write_is_answered_and_the_value_read_back`, `write_is_refused_for_a_read_only_variable_and_a_wrong_type` | none: the reference tool has no write | G8 (peer side) |
+| GetVariableAccessAttributes (6) | `get_variable_access_attributes_returns_the_type` | `get_variable_access_attributes_returns_the_type` | none: the reference tool does not use it | address form not served |
+| DefineNamedVariableList (11) | `define_named_variable_list_is_acknowledged` | `define_get_and_delete_a_named_variable_list`, `a_definition_that_exists_or_names_a_missing_member_is_an_error` | none: the reference tool has no define | G12: the peer refuses a domain-scope list |
+| GetNamedVariableListAttributes (12) | `get_named_variable_list_attributes_returns_the_list` | `define_get_and_delete_a_named_variable_list` | `test_the_reference_client_matrix_against_the_device` | none |
+| DeleteNamedVariableList (13) | `delete_named_variable_list_returns_the_counts` | `a_list_of_a_domain_is_deleted_with_its_scope`, `define_get_and_delete_a_named_variable_list` | none: the reference tool has no delete | none |
+| InformationReport (unconfirmed 0) | `an_unconfirmed_report_reaches_the_event_stream` | `an_unconfirmed_report_reaches_the_associations`, `an_unconfirmed_service_reaches_the_other_end_without_a_state` | none: the device sends no report | G15 (no reporting control block) |
+| Initiate, negotiation, refusal | `a_refused_association_fails_the_connect` | `no_common_service_is_refused_with_service_cbb_insufficient`, `a_nesting_level_below_the_tase2_minimum_is_refused_with_its_error` | `test_reference_client_initiates_and_reads_the_server_identity` | none |
+| Conclude and abort | `close_releases_the_association_and_later_calls_fail` | `conclude_releases_the_association_in_the_order_of_annex_a`, `an_abort_is_a_user_abort_at_both_ends` | `test_stack_negotiates_and_concludes_with_the_reference_server`, `an_abort_ends_the_association_on_both_ends` | G1: the peer does not confirm the release |
+| Reject (both directions) | `a_request_beyond_the_limit_of_the_peer_is_rejected_with_max_serv_outstanding_exceeded` | `a_repeated_invoke_id_from_the_peer_is_rejected_as_invalid`, `a_response_with_an_unknown_invoke_id_is_rejected_and_changes_nothing` | none | the Reject of a server for an unserved request is covered by the codec only |
+| Cancel | `an_accepted_cancel_is_a_cancel_response_then_the_error_of_the_request` | `a_refused_cancel_leaves_the_request_to_complete` | none | none |
+| TLS (IEC 62351-3) | `the_client_and_the_server_negotiate_tls_13_and_run_mms_over_it` | `a_revoked_certificate_is_refused_by_the_revocation_list` | none | G16, G17, G18, G19 |
+
+### Index of the gaps
+
+Each gap is described in the section that found it; this index gives its status.
+
+| Gap | Status | Where |
+| --- | --- | --- |
+| G1 | Open: the peer does not confirm the release (RLRQ) | Gaps; T2 (D-021) |
+| G2 | Partly closed: the reference client now runs its services against this server (S3, S4); the reverse direction is tested | Gaps; S3 |
+| G3 | Open: no scenario checks a refusal of the association by the peer (the loopback tests do) | Gaps |
+| G4 | Closed for the nine services in scope (T4, S4) | Gaps; T4 |
+| G5 | Open: the PDUs that minor versions 1 and 2 forbid are not refused | Gaps |
+| G6 | Not a defect: Wireshark reads the release as a zero-byte MMS PDU | Gaps |
+| G7 | Fixed (T3): the extra bits of the peer's Initiate response are ignored | Gaps; T3 |
+| G8 | Open: the peer negotiates no parameter CBB yet serves the services that need them; conformant by default, option `lenient` | Gaps; T3, T4 |
+| G9 | Open: identifiers over 32 characters from the peer (IEC 61850 names) | Gaps; T3 |
+| G10 | Open: data nested deeper than negotiated; the command line proposes 6, the library 2 | Gaps; T3 |
+| G11 | Open: a data tag of a later edition, kept raw | Gaps; T3 |
+| G12 | Open: the peer refuses a domain-scope named variable list | S4 matrix; Client matrix |
+| G13 | Fixed (D-027): the peer proposes application context 1.0.9506.2.3, now accepted | S3 |
+| G14 | Open: the server does not hold journals; the reference client's domain listing ends with error 82 | S3; S4 |
+| G15 | Open: the device sends no report; no reporting control block | S4 |
+| G16 | Open: the security events of IEC 62351-3 Annex A are not raised | X1 |
+| G17 | Open: rustls lacks two mandatory TLS 1.2 suites and the CCM suite of TLS 1.3 | X1 |
+| G18 | Open: no TLS 1.2 renegotiation | X1 |
+| G19 | Open: the 8 192-octet certificate boundary is not tested | X1 |
+
+### Parameter CBBs
+
+The server advertises four parameter CBBs (`server_capabilities`); a request that uses another is refused by the
+CBB check of the association (ISO 9506-2 §8). The client proposes all of them and takes the server's answer.
+
+| CBB | Served | Test covering the row |
+| --- | --- | --- |
+| str1 (arrays) | yes | `data_needs_str1_str2_and_the_nesting_level` |
+| str2 (structures) | yes | `write_is_answered_and_the_value_read_back` |
+| vnam (named variables) | yes | `read_returns_the_value_and_fails_per_item` |
+| vlis (named variable lists) | yes | `define_get_and_delete_a_named_variable_list` |
+| vadr (addresses) | no | `variable_specifications` (refused without the CBB) |
+| valt (alternate access) | no | `alternate_access` (refused without the CBB) |
+| vsca (scattered access) | no | `variable_specifications` (refused without the CBB) |
+| all others | no | `the_cbb_check_is_total` |
+
+<!-- matrix:end -->
+
 ## Against the reference server (libiec61850 v1.6.2.1, `server_example_basic_io`)
 
 | Scenario | Result |

@@ -414,7 +414,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | S4 Server interop and load | [x] |
 | X1 TLS | [x] |
 | X2 Documentation and examples | [x] |
-| X3 Supported service matrix | [ ] |
+| X3 Supported service matrix | [x] |
 | R1 Legal review and release ⛔ | [ ] |
 
 Suggested order: P1–P4, F1, F2, F3, F4, F5, C1–C8, L1–L3, T1, L4, L5, L6, T2–T4, S1–S4, X1–X3, C9
