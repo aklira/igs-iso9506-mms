@@ -14,6 +14,7 @@ mod service;
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,7 +22,9 @@ use igs_iso9506_mms_codec::generated::types::{
     ConfirmedServiceRequest, ConfirmedServiceResponse, ServiceError, ServiceErrorErrorClass,
     ServiceErrorErrorClassResource, UnconfirmedService,
 };
-use igs_iso9506_mms_link::association::{self, Action as AssocAction, Answer, Capabilities};
+use igs_iso9506_mms_link::association::{
+    self, Action as AssocAction, Answer, Calling, Capabilities,
+};
 use igs_iso9506_mms_link::config::LinkConfig;
 use igs_iso9506_mms_link::requests::{Action, Event, Requests};
 use igs_iso9506_mms_link::transport::Role;
@@ -38,6 +41,9 @@ use crate::vmd::Vmd;
 
 /// The associations a server holds at once; a connection beyond it is closed at once.
 pub const DEFAULT_MAX_ASSOCIATIONS: usize = 64;
+
+/// How often the model is polled, by default.
+pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// The calls waiting for the model.
 const CALL_CAPACITY: usize = 64;
@@ -60,6 +66,8 @@ pub struct ServerConfig {
     pub max_associations: usize,
     /// The TLS backend: when set, every connection runs its handshake before its association (task X1).
     pub tls: Option<Secure>,
+    /// How often the model is polled for its time-driven outputs ([`Model::poll`]).
+    pub poll_interval: Duration,
 }
 
 impl ServerConfig {
@@ -70,6 +78,7 @@ impl ServerConfig {
             capabilities: server_capabilities(),
             max_associations: DEFAULT_MAX_ASSOCIATIONS,
             tls: None,
+            poll_interval: DEFAULT_POLL_INTERVAL,
         }
     }
 
@@ -97,30 +106,104 @@ pub fn server_capabilities() -> Capabilities {
     }
 }
 
+/// The number of an association on a server, from 1 in the order of the associations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PeerId(pub u64);
+
+/// The identity of an association, as the model sees it: its number, and what its AARQ states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Peer {
+    /// The number of the association.
+    pub id: PeerId,
+    /// The identity of the calling side, from its AARQ.
+    pub calling: Calling,
+}
+
+/// An unconfirmed PDU to send: to every open association when `peer` is `None`, else to that association only.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Outbound {
+    /// The association that the PDU is for, or `None` for all of them.
+    pub peer: Option<PeerId>,
+    /// The PDU.
+    pub report: UnconfirmedService,
+}
+
+/// The model that a server serves: the VMD, or an application on it (task S1).
+///
+/// The model is owned by one task, which runs its calls one at a time. The calls name the association that makes them:
+/// its admission, its confirmed services, and its release. [`Model::poll`] runs every
+/// [`ServerConfig::poll_interval`]; its outputs go to the associations they name.
+pub trait Model: Send + 'static {
+    /// Whether the association may be established: a refusal is answered to the Initiate request. Admits every
+    /// association by default.
+    fn admit(&mut self, _peer: &Peer) -> bool {
+        true
+    }
+
+    /// The answer to a confirmed service of an association.
+    fn dispatch(
+        &mut self,
+        peer: &Peer,
+        service: ConfirmedServiceRequest,
+    ) -> Result<ConfirmedServiceResponse, ServiceError>;
+
+    /// The association has ended: it was concluded, aborted, or its transport closed.
+    fn released(&mut self, _peer: &Peer) {}
+
+    /// The time-driven outputs, at `now` (the time since the server started).
+    fn poll(&mut self, _now: Duration) -> Vec<Outbound> {
+        Vec::new()
+    }
+}
+
+impl Model for Vmd {
+    fn dispatch(
+        &mut self,
+        _peer: &Peer,
+        service: ConfirmedServiceRequest,
+    ) -> Result<ConfirmedServiceResponse, ServiceError> {
+        service::dispatch(self, service)
+    }
+}
+
 /// A running server. Dropping it stops the listener and the associations.
 pub struct Server {
     local_address: SocketAddr,
-    reports: broadcast::Sender<UnconfirmedService>,
+    reports: broadcast::Sender<Outbound>,
     stop: watch::Sender<bool>,
     listener: JoinHandle<()>,
 }
 
 impl Server {
-    /// Listens on `address` (for example `127.0.0.1:102`, or port 0 for a free port), and serves
-    /// `vmd`.
+    /// Listens on `address` (for example `127.0.0.1:102`, or port 0 for a free port), and serves `vmd`.
     pub async fn bind(address: &str, config: ServerConfig, vmd: Vmd) -> Result<Self, Error> {
+        Self::bind_model(address, config, vmd).await
+    }
+
+    /// Listens on `address`, and serves `model` (task S1): the model sees each association and its services.
+    pub async fn bind_model<M: Model>(
+        address: &str,
+        config: ServerConfig,
+        model: M,
+    ) -> Result<Self, Error> {
         let listener = TcpListener::bind(address).await.map_err(Error::Io)?;
         let local_address = listener.local_addr().map_err(Error::Io)?;
         let (calls, received) = mpsc::channel(CALL_CAPACITY);
         let (reports, _) = broadcast::channel(REPORT_CAPACITY);
         let (stop, stop_rx) = watch::channel(false);
-        tokio::spawn(model_task(vmd, received));
+        tokio::spawn(model_task(
+            model,
+            received,
+            reports.clone(),
+            config.poll_interval.max(Duration::from_millis(1)),
+        ));
         let shared = Shared {
             link: config.link,
             capabilities: config.capabilities,
             calls,
             reports: reports.clone(),
             tls: config.tls,
+            next_peer: Arc::new(AtomicU64::new(1)),
         };
         let limit = Arc::new(Semaphore::new(config.max_associations));
         let listener = tokio::spawn(accept_loop(listener, shared, stop_rx, limit));
@@ -141,7 +224,9 @@ impl Server {
     /// Returns the number of associations it was queued to. An association that does not take it in time
     /// misses it.
     pub fn publish(&self, report: UnconfirmedService) -> usize {
-        self.reports.send(report).unwrap_or(0)
+        self.reports
+            .send(Outbound { peer: None, report })
+            .unwrap_or(0)
     }
 
     /// Stops listening and ends the associations. Returns when the listener has stopped.
@@ -157,21 +242,50 @@ struct Shared {
     link: LinkConfig,
     capabilities: Capabilities,
     calls: mpsc::Sender<Call>,
-    reports: broadcast::Sender<UnconfirmedService>,
+    reports: broadcast::Sender<Outbound>,
     tls: Option<Secure>,
+    next_peer: Arc<AtomicU64>,
 }
 
 impl Shared {
-    /// Runs a service on the model and waits for its answer.
+    /// Asks the model whether the association may be established.
+    async fn admit(&self, peer: &Peer) -> bool {
+        let (reply, answer) = oneshot::channel();
+        if self
+            .calls
+            .send(Call::Admit {
+                peer: peer.clone(),
+                reply,
+            })
+            .await
+            .is_err()
+        {
+            return false;
+        }
+        answer.await.unwrap_or(false)
+    }
+
+    /// Runs a confirmed service of the association on the model, and waits for its answer.
     async fn call(
         &self,
+        peer: &Peer,
         service: ConfirmedServiceRequest,
     ) -> Result<ConfirmedServiceResponse, ServiceError> {
         let (reply, answer) = oneshot::channel();
-        if self.calls.send(Call { service, reply }).await.is_err() {
+        let call = Call::Service {
+            peer: peer.clone(),
+            service,
+            reply,
+        };
+        if self.calls.send(call).await.is_err() {
             return Err(stopping());
         }
         answer.await.unwrap_or_else(|_| Err(stopping()))
+    }
+
+    /// Tells the model that the association has ended.
+    async fn released(&self, peer: &Peer) {
+        let _ = self.calls.send(Call::Released { peer: peer.clone() }).await;
     }
 }
 
@@ -185,18 +299,50 @@ fn stopping() -> ServiceError {
     }
 }
 
-/// A service to run on the model.
-struct Call {
-    service: ConfirmedServiceRequest,
-    reply: oneshot::Sender<Result<ConfirmedServiceResponse, ServiceError>>,
+/// A call to the model, from an association.
+enum Call {
+    Admit {
+        peer: Peer,
+        reply: oneshot::Sender<bool>,
+    },
+    Service {
+        peer: Peer,
+        service: ConfirmedServiceRequest,
+        reply: oneshot::Sender<Result<ConfirmedServiceResponse, ServiceError>>,
+    },
+    Released {
+        peer: Peer,
+    },
 }
 
-/// The one owner of the model: it runs the calls in turn, and ends when no association holds a sender.
-async fn model_task(mut vmd: Vmd, mut calls: mpsc::Receiver<Call>) {
-    while let Some(call) = calls.recv().await {
-        let result = service::dispatch(&mut vmd, call.service);
-        // The association may have ended: its answer is then not needed.
-        let _ = call.reply.send(result);
+/// The one owner of the model: it runs the calls in turn, and polls it. It ends when no association holds a sender.
+async fn model_task<M: Model>(
+    mut model: M,
+    mut calls: mpsc::Receiver<Call>,
+    reports: broadcast::Sender<Outbound>,
+    poll_interval: Duration,
+) {
+    let started = Instant::now();
+    let mut ticker = tokio::time::interval(poll_interval);
+    loop {
+        tokio::select! {
+            call = calls.recv() => match call {
+                Some(Call::Admit { peer, reply }) => {
+                    // The association may have ended: its answer is then not needed.
+                    let _ = reply.send(model.admit(&peer));
+                }
+                Some(Call::Service { peer, service, reply }) => {
+                    let _ = reply.send(model.dispatch(&peer, service));
+                }
+                Some(Call::Released { peer }) => model.released(&peer),
+                None => return,
+            },
+            _ = ticker.tick() => {
+                for outbound in model.poll(started.elapsed()) {
+                    let _ = reports.send(outbound);
+                }
+            }
+        }
     }
 }
 
@@ -243,12 +389,29 @@ async fn connection(
     }
 }
 
-/// One association: the transport connection, the requests of the responder, and the services.
+/// One association: the transport connection, the requests of the responder, and the services. The model is told
+/// when an admitted association ends, however it ends.
 async fn association<S: ByteStream>(
     stream: S,
     shared: Shared,
-    mut stop: watch::Receiver<bool>,
+    stop: watch::Receiver<bool>,
     _permit: OwnedSemaphorePermit,
+) {
+    let id = PeerId(shared.next_peer.fetch_add(1, Ordering::Relaxed));
+    let mut admitted: Option<Peer> = None;
+    conduct(stream, &shared, stop, id, &mut admitted).await;
+    if let Some(peer) = admitted {
+        shared.released(&peer).await;
+    }
+}
+
+/// The exchanges of one association, until it ends. `admitted` is set when the model admits the association.
+async fn conduct<S: ByteStream>(
+    stream: S,
+    shared: &Shared,
+    mut stop: watch::Receiver<bool>,
+    id: PeerId,
+    admitted: &mut Option<Peer>,
 ) {
     let Ok(mut transport) = accept(stream, shared.link.clone()).await else {
         return;
@@ -262,6 +425,8 @@ async fn association<S: ByteStream>(
     };
     let mut reports = shared.reports.subscribe();
     let started = Instant::now();
+    // The identity that the AARQ states, indicated just before the Initiate request.
+    let mut calling: Option<Calling> = None;
     // FIFO: the actions of one event are carried out in the order the layers give them.
     let mut work: VecDeque<Action> = VecDeque::new();
     loop {
@@ -273,10 +438,13 @@ async fn association<S: ByteStream>(
                     started.elapsed(),
                 ));
             }
-            report = reports.recv(), if requests.is_open() => {
-                // A lagged receiver misses the reports it did not take in time.
-                if let Ok(report) = report {
-                    work.extend(requests.handle(Event::Unconfirmed(report), started.elapsed()));
+            outbound = reports.recv(), if requests.is_open() => {
+                // A lagged receiver misses the reports it did not take in time. A report for another
+                // association is not this one's.
+                if let Ok(outbound) = outbound {
+                    if outbound.peer.is_none() || outbound.peer == Some(id) {
+                        work.extend(requests.handle(Event::Unconfirmed(outbound.report), started.elapsed()));
+                    }
                 }
             }
             _ = stop.changed() => return,
@@ -289,14 +457,35 @@ async fn association<S: ByteStream>(
                     }
                 }
                 Action::ReleaseTransport => return,
+                Action::Association(AssocAction::Calling(identity)) => calling = Some(identity),
                 Action::Association(AssocAction::Indication(_)) => {
+                    let peer = Peer {
+                        id,
+                        calling: calling.take().unwrap_or(Calling {
+                            ap_title: None,
+                            ae_qualifier: None,
+                        }),
+                    };
+                    let accepted = shared.admit(&peer).await;
+                    let answer = if accepted {
+                        Answer::Accept
+                    } else {
+                        Answer::Reject
+                    };
+                    if accepted {
+                        *admitted = Some(peer);
+                    }
                     work.extend(requests.handle(
-                        Event::Association(association::Event::Answer(Answer::Accept)),
+                        Event::Association(association::Event::Answer(answer)),
                         started.elapsed(),
                     ));
                 }
                 Action::Indication { invoke, service } => {
-                    let result = shared.call(service).await;
+                    let result = match admitted.as_ref() {
+                        Some(peer) => shared.call(peer, service).await,
+                        // A service is served only on an admitted association.
+                        None => Err(stopping()),
+                    };
                     work.extend(requests.handle(Event::Respond(invoke, result), started.elapsed()));
                 }
                 Action::Association(AssocAction::Concluded)

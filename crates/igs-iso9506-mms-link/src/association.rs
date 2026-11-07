@@ -17,8 +17,9 @@ use igs_iso9506_mms_codec::acse::{
     ReleaseRequestReason, ReleaseResponseReason,
 };
 use igs_iso9506_mms_codec::generated::types::{
-    InitiateResponsePDUInitResponseDetail, ParameterSupportOptions, ServiceErrorErrorClass,
-    ServiceErrorErrorClassInitiate, ServiceSupportOptions,
+    AEQualifier, APTitle, APTitleForm2, InitiateResponsePDUInitResponseDetail,
+    ParameterSupportOptions, ServiceErrorErrorClass, ServiceErrorErrorClassInitiate,
+    ServiceSupportOptions,
 };
 use igs_iso9506_mms_codec::mms::{
     self, CbbError, InitiateErrorPDU, InitiateRequestPDU, InitiateResponsePDU, Integer16, Integer8,
@@ -101,9 +102,21 @@ pub enum Event {
     TransportClosed(TransportCause),
 }
 
+/// The identity of the calling side, as its AARQ states it (ISO 8650-1 §6.1): the AP-title and the AE qualifier.
+/// The responder indicates it before the Initiate request, so that the model can admit or refuse the client.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Calling {
+    /// The AP-title of the calling application process, if the AARQ gives one.
+    pub ap_title: Option<APTitle>,
+    /// The AE qualifier of the calling application entity, if the AARQ gives one.
+    pub ae_qualifier: Option<AEQualifier>,
+}
+
 /// An output of the association.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
+    /// Responder: the identity of the calling side, indicated before [`Action::Indication`].
+    Calling(Calling),
     /// A TSDU for the transport connection.
     Send(Vec<u8>),
     /// The transport connection is no longer needed: release it.
@@ -241,7 +254,12 @@ impl Association {
             called_ae_qualifier: None,
             called_ap_invocation_identifier: None,
             called_ae_invocation_identifier: None,
-            calling_ap_title: None,
+            // The AP-title of this end, as its configuration gives it (ISO 8650-1 §6.1.2).
+            calling_ap_title: self
+                .config
+                .ap_title
+                .clone()
+                .map(|oid| APTitle::ApTitleForm2(APTitleForm2(oid))),
             calling_ae_qualifier: None,
             calling_ap_invocation_identifier: None,
             calling_ae_invocation_identifier: None,
@@ -406,7 +424,11 @@ impl Association {
             return self.reject(1, None);
         };
         self.state = State::Indicated(request.clone());
-        vec![Action::Indication(request)]
+        let calling = Calling {
+            ap_title: aarq.calling_ap_title.clone(),
+            ae_qualifier: aarq.calling_ae_qualifier.clone(),
+        };
+        vec![Action::Calling(calling), Action::Indication(request)]
     }
 
     /// Initiator: the CPA carries the AARE, whose Initiate response negotiates the association.
