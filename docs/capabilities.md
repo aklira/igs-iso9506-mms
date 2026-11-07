@@ -14,6 +14,41 @@ criterion is fixed, or recorded here.
 | Abort by the user | Works; the peer closes the stream |
 | Conclude: CONCLUDE request, CONCLUDE response | Works |
 
+## Server interoperability and load (task S4)
+
+The matrix of the reference client against the device (`bench/tests/test_s4_server_matrix.py`) passes: each
+row shows its expected output and exit status, and the capture shows the services on the wire.
+
+| Row | Reference client command | Result |
+| --- | --- | --- |
+| identify | `-i` | Pass |
+| getNameList, domains | `-d` | Pass |
+| getNameList, named variables of a domain | `-t demo` | Pass: the three variables are listed |
+| getNameList, journals | `-t demo` (the query that follows) | Gap G14: error 82, exit 82 |
+| read, floating point, boolean, visible string | `-a demo -r ...` | Pass |
+| read, unknown name | `-a demo -r missing` | Pass: error 10 (object-non-existent) |
+| read, named variable list | `-a demo -v snapshot` | Pass |
+| getNamedVariableListAttributes | `-a demo -z snapshot` | Pass: both members |
+
+Not exercised by the reference client, which has no command for them: write, getVariableAccessAttributes,
+defineNamedVariableList, deleteNamedVariableList, and the reception of reports (G15). They are covered by the
+Rust scenarios of `tests/server.rs` and by the runs of `igsmms-client` against the host server
+(`docs/ai-log/S4.md`).
+
+Load (`crates/igs-iso9506-mms/tests/load.rs`, release build, host server with `bench/device/demo.toml`): fifty
+clients, one association each, a thousand requests each (identify, domain list, read), 50 000 requests in each
+run. Three runs, no error: about 58 000 to 61 000 requests per second; the request latency p50 is about
+0.8 ms, p99 about 1.3 ms; the connection p50 is about 4 to 5 ms. The latencies are seen by the clients, on one
+machine; the server runs its services one at a time (D-026).
+
+Gaps of the server, found by the matrix and the load:
+
+- **G15, reports.** The device sends no report: the model has no reporting control block, and no bench
+  scenario enables one. The reception of an unconfirmed PDU by the reference client is not tested against the
+  device (the library's `Server::publish` is tested in `tests/server.rs`).
+- **The reference client does not write.** Its tool has no write, define or delete command: those services are
+  tested by this repository's client and its Rust scenarios only.
+
 ## Device under test (task S3)
 
 `igsmms-server` (`docs/igsmms-server.md`) serves the file `bench/device/demo.toml`. The reference client

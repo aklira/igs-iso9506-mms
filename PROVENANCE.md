@@ -789,6 +789,25 @@ silent, to be confirmed by an observation test against other implementations.
   unknown key, a missing member, a negative unsigned, a missing size are refused), and the bench run
   `bench/tests/test_s3_device.py`.
 
+### D-029 — The server's interoperability matrix and its load test (task S4)
+
+- **Decision**: the matrix of the reference client against the device is a bench test
+  (`bench/tests/test_s4_server_matrix.py`): one row per command of the reference tool, with the output and the
+  exit status it must show; a known gap is a row whose expected output is the gap (G14). The capture must show
+  the services on the wire and decode cleanly. The load test is a Rust test (`tests/load.rs`), ignored by
+  default, that opens fifty associations at once and runs a thousand requests in each, measuring the latency of
+  each service on the client side.
+- **Why**: the reference tool is the only independent client of the bench, and it has no write, define or delete
+  command; those are tested by the Rust scenarios. The latency is measured on the client because it is the
+  latency an application sees; the server's own timing is not instrumented.
+- **Limits recorded**: the load test asserts that the fifty clients connect and that no request fails, and it
+  prints the latencies. It asserts no latency bound: the figures are those of one machine on the loopback,
+  not a contract. A bound on the target hardware is for the release (X3), not decided here. The client runs on
+  one thread (`current_thread`), which may bound the throughput measured.
+- **Sources**: the transcripts of `docs/ai-log/S4.md`; ISO 9506-2 §7 for the services measured.
+- **Confidence**: high for the matrix (observed on the wire); high for the counts and the absence of errors;
+  medium for the latencies as a characteristic of the server, since the client shares the machine.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
