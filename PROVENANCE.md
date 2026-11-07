@@ -808,6 +808,32 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high for the matrix (observed on the wire); high for the counts and the absence of errors;
   medium for the latencies as a characteristic of the server, since the client shares the machine.
 
+### D-030 — TLS for MMS: a backend trait, the rustls backend, the mutual authentication (task X1)
+
+- **Decision**: `igs_iso9506_mms::tls` holds the `TlsBackend` trait (connect, accept), the `SecureStream` the
+  transport runs over, `SecureConnector` for the client, and `RustlsBackend`. The server takes the backend in its
+  configuration (`ServerConfig::with_tls`). The backend requires the certificate of each endpoint, checks the
+  peers against the trust anchors and the revocation lists, and refuses to build without a revocation list.
+  The TLS versions are 1.2 (mandatory) and 1.3 (optional), clause 10.3, Table 7.
+- **Why**: the design of `igs-iec104` (task X1 of that project): the same trait shape, and the same crates
+  (rustls and tokio-rustls, with the ring provider; no aws-lc-rs, which needs a C build). The maintainer approved
+  these crates for `igs-iec104`; this repository uses them under the same licences (Apache-2.0, ISC, MIT).
+- **Mutual authentication** (clause 6.4.3): the server requires the client's certificate, and the client checks the
+  server's. The client's identity is optional in the settings, so that a station can be built as a client only
+  (the tests use it to show the refusal).
+- **Revocation** (clause 6.4.4.4): the backend needs one CRL or more, and checks the peers' certificates against
+  them. The profile allows OCSP as well; it is not implemented (the CRL check is the one of the profile's default).
+- **Not decided here**: the security events of Annex A (gap G16), the cipher suites that rustls lacks (G17), the
+  renegotiation (G18), the certificate size boundary (G19). The client and server binaries have no TLS option yet:
+  the library is the entry point (X2 documents it).
+- **Sources**: IEC 62351-3 clauses 6.4.1, 6.4.2, 6.4.3, 6.4.4.4, 6.4.4.5, 7.2 (the TLS 1.2 suites), 8.2 (the TLS 1.3
+  suites), 10.3; `igs-iec104`'s X1 log for the design.
+- **Confidence**: high for the refusals, which are observed with the alerts the peer sends (the probe in this step);
+  medium for the cipher suite and version choices, which the profile's tables mark and which rustls only partly
+  offers (G17).
+- **Test material**: `tests/fixtures/tls` (the leaf keys are test-only; the roots' keys were discarded by
+  `generate.sh`).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
