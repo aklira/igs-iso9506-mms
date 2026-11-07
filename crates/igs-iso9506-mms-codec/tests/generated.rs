@@ -6,14 +6,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
+use igs_iso9506_mms_codec::asn::{self, Error};
 use igs_iso9506_mms_codec::generated::tables::{
     ADDITIONAL_CBB_OPTIONS, ADDITIONAL_SUPPORT_OPTIONS, ENVIRONMENT_BITS, ERROR_CLASSES, MODIFIERS,
     PARAMETERS, PARAMETER_SUPPORT_OPTIONS, PDUS, PDU_REQUIREMENTS, REJECT_REASONS, SERVICES,
     SERVICE_SUPPORT_OPTIONS,
 };
 use igs_iso9506_mms_codec::generated::types::{
-    AARQApdu, ConfirmedRequestPDU, ConfirmedServiceRequest, Data, TimeOfDay, Unsigned32, TYPE_COUNT,
+    AARQApdu, ConfirmedRequestPDU, ConfirmedServiceRequest, Data, IdentifyRequest, Integer8,
+    MMSpdu, ServiceSupportOptions, TimeOfDay, Unsigned32, TYPE_COUNT,
 };
+use igs_iso9506_mms_codec::schema::RawBer;
 use igs_iso9506_mms_codec::schema::{Family, Presence, Service, SupportOption, TagClass, Tagging};
 
 fn service(name: &str) -> &'static Service {
@@ -153,4 +156,108 @@ fn constraints_are_kept() {
 #[test]
 fn type_count_is_stable() {
     assert_eq!(TYPE_COUNT, 143);
+}
+
+/// Constraints without an extension marker are checked by `new`, on decoding and on encoding.
+#[test]
+fn constraints_are_checked() {
+    assert!(Integer8::new(127).is_ok());
+    assert!(Integer8::new(-128).is_ok());
+    assert_eq!(
+        Integer8::new(128),
+        Err(Error::OutOfRange { ty: "Integer8" })
+    );
+    assert!(TimeOfDay::new(vec![0; 4]).is_ok());
+    assert!(TimeOfDay::new(vec![0; 6]).is_ok());
+    assert_eq!(
+        TimeOfDay::new(vec![0; 5]),
+        Err(Error::WrongSize { ty: "TimeOfDay" })
+    );
+    // An Integer8 of 128 on the wire, and one built around the check.
+    assert_eq!(
+        asn::decode_value::<Integer8>(&[0x02, 0x02, 0x00, 0x80]),
+        Err(Error::OutOfRange { ty: "Integer8" })
+    );
+    assert_eq!(
+        asn::encode_value::<Integer8>(&Integer8(128)),
+        Err(Error::OutOfRange { ty: "Integer8" })
+    );
+    assert_eq!(
+        asn::decode_value::<TimeOfDay>(&[0x04, 0x05, 0, 0, 0, 0, 0]),
+        Err(Error::WrongSize { ty: "TimeOfDay" })
+    );
+}
+
+/// The CBB bit strings are read at any size: a peer of an earlier version sends fewer bits.
+#[test]
+fn cbb_bit_strings_are_read_at_any_size() {
+    let mut bytes = vec![0x03, 0x0C, 0x03];
+    bytes.extend([
+        0xEE, 0x1C, 0x00, 0x00, 0x04, 0x08, 0x00, 0x00, 0x79, 0xEF, 0x18,
+    ]);
+    let options = asn::decode_value::<ServiceSupportOptions>(&bytes).unwrap();
+    assert_eq!(asn::Measure::measure(&options.0), 85);
+    assert_eq!(
+        asn::encode_value::<ServiceSupportOptions>(&options).unwrap(),
+        bytes
+    );
+}
+
+/// The confirmed request observed on the bench (task F5) decodes with the generated code.
+#[test]
+fn observed_confirmed_request() {
+    let bytes = [0xA0, 0x05, 0x02, 0x01, 0x01, 0x82, 0x00];
+    let pdu = asn::decode_value::<MMSpdu>(&bytes).unwrap();
+    let MMSpdu::ConfirmedRequestPDU(request) = &pdu else {
+        panic!("not a confirmed request");
+    };
+    assert_eq!(request.invoke_id, Unsigned32(1));
+    assert_eq!(
+        request.service,
+        ConfirmedServiceRequest::Identify(IdentifyRequest(()))
+    );
+    assert_eq!(asn::encode_value::<MMSpdu>(&pdu).unwrap(), bytes);
+}
+
+/// A service out of scope decodes to `Unsupported` and is written back as received.
+#[test]
+fn services_out_of_scope_are_kept() {
+    // invokeID 7, then [75] (high-tag form), a service the profile does not require.
+    let bytes = [0xA0, 0x07, 0x02, 0x01, 0x07, 0x9F, 0x4B, 0x01, 0xFF];
+    let pdu = asn::decode_value::<MMSpdu>(&bytes).unwrap();
+    let MMSpdu::ConfirmedRequestPDU(request) = &pdu else {
+        panic!("not a confirmed request");
+    };
+    assert_eq!(
+        request.service,
+        ConfirmedServiceRequest::Unsupported {
+            tag: 75,
+            raw: RawBer(vec![0x9F, 0x4B, 0x01, 0xFF])
+        }
+    );
+    assert_eq!(asn::encode_value::<MMSpdu>(&pdu).unwrap(), bytes);
+    let wrong = ConfirmedServiceRequest::Unsupported {
+        tag: 76,
+        raw: RawBer(vec![0x9F, 0x4B, 0x01, 0xFF]),
+    };
+    assert_eq!(
+        asn::encode_value::<ConfirmedServiceRequest>(&wrong),
+        Err(Error::InvalidRaw)
+    );
+}
+
+/// Recursive types stop at the nesting bound of the BER reader, whatever the length form.
+#[test]
+fn nesting_is_bounded() {
+    let nested = |n: usize| {
+        let mut bytes = [0xA2, 0x80].repeat(n);
+        bytes.extend([0x00, 0x00].repeat(n));
+        asn::decode_value::<Data>(&bytes)
+    };
+    assert!(nested(64).is_ok());
+    let limit = Err(Error::Ber(
+        igs_iso9506_mms_codec::ber::Error::DepthExceeded { limit: 64 },
+    ));
+    assert_eq!(nested(65), limit);
+    assert_eq!(nested(100_000), limit);
 }

@@ -40,6 +40,10 @@ pub type Ranges = Vec<(Option<i64>, Option<i64>)>;
 pub struct Constraint {
     pub values: Ranges,
     pub sizes: Ranges,
+    /// An extension marker in the value constraint: other values are valid too.
+    pub values_extensible: bool,
+    /// An extension marker in the size constraint.
+    pub sizes_extensible: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,10 +54,12 @@ pub enum Kind {
     Enumerated(Vec<(String, i64)>),
     BitString(Vec<(String, i64)>),
     OctetString,
-    Text,
+    /// A character string or time type, with its universal tag number.
+    Text(u32),
     ObjectIdentifier,
-    /// EXTERNAL, EMBEDDED PDV, ANY and open types: left to the hand-written code as raw BER.
-    Raw,
+    /// EXTERNAL, EMBEDDED PDV (with their universal tag number), ANY and open types (none):
+    /// left to the hand-written code as raw BER.
+    Raw(Option<u32>),
     Sequence(Vec<Member>),
     SequenceOf(Box<Type>),
     Choice(Vec<Member>),
@@ -268,11 +274,18 @@ impl Parser<'_> {
         let kind = match word.as_str() {
             "BOOLEAN" => Kind::Boolean,
             "NULL" => Kind::Null,
-            "INTEGER" => Kind::Integer(self.named()?),
-            "ENUMERATED" => Kind::Enumerated(self.named()?),
+            "INTEGER" => Kind::Integer(self.named()?.0),
+            "ENUMERATED" => {
+                let (named, extensible) = self.named()?;
+                // X.680 §20: without an extension marker, only the named values are values.
+                if !extensible {
+                    constraint.values = named.iter().map(|(_, v)| (Some(*v), Some(*v))).collect();
+                }
+                Kind::Enumerated(named)
+            }
             "BIT" => {
                 self.expect("STRING")?;
-                Kind::BitString(self.named()?)
+                Kind::BitString(self.named()?.0)
             }
             "OCTET" => {
                 self.expect("STRING")?;
@@ -282,13 +295,17 @@ impl Parser<'_> {
                 self.expect("IDENTIFIER")?;
                 Kind::ObjectIdentifier
             }
-            "VisibleString" | "GraphicString" | "UTF8String" | "GeneralizedTime" | "UTCTime" => {
-                Kind::Text
-            }
-            "EXTERNAL" | "ANY" => Kind::Raw,
+            // X.680 §8.4, table 1.
+            "UTF8String" => Kind::Text(12),
+            "UTCTime" => Kind::Text(23),
+            "GeneralizedTime" => Kind::Text(24),
+            "GraphicString" => Kind::Text(25),
+            "VisibleString" => Kind::Text(26),
+            "EXTERNAL" => Kind::Raw(Some(8)),
+            "ANY" => Kind::Raw(None),
             "EMBEDDED" => {
                 self.expect("PDV")?;
-                Kind::Raw
+                Kind::Raw(Some(11))
             }
             "CHOICE" => Kind::Choice(self.members()?),
             "SEQUENCE" | "SET" => {
@@ -306,7 +323,7 @@ impl Parser<'_> {
                     // `Module.Type` is a reference; `CLASS.&field` is an open type.
                     let field = self.bump();
                     if field.starts_with('&') {
-                        Kind::Raw
+                        Kind::Raw(None)
                     } else {
                         Kind::Reference(field)
                     }
@@ -326,13 +343,19 @@ impl Parser<'_> {
         })
     }
 
-    fn named(&mut self) -> Result<Vec<(String, i64)>, Fail> {
+    /// Named numbers or enumerations, and whether an extension marker is among them.
+    fn named(&mut self) -> Result<(Vec<(String, i64)>, bool), Fail> {
         let mut out = Vec::new();
+        let mut extensible = false;
         if !self.eat("{") {
-            return Ok(out);
+            return Ok((out, extensible));
         }
         while !self.eat("}") {
-            if self.eat(",") || self.eat("...") {
+            if self.eat("...") {
+                extensible = true;
+                continue;
+            }
+            if self.eat(",") {
                 continue;
             }
             let name = self.bump();
@@ -341,7 +364,7 @@ impl Parser<'_> {
             self.expect(")")?;
             out.push((name, value));
         }
-        Ok(out)
+        Ok((out, extensible))
     }
 
     fn members(&mut self) -> Result<Vec<Member>, Fail> {
@@ -401,13 +424,18 @@ impl Parser<'_> {
     fn constraint_body(&mut self, out: &mut Constraint, size: bool) -> Result<(), Fail> {
         self.expect("(")?;
         let mut ranges = Ranges::new();
+        let mut extensible = false;
         loop {
             match self.peek() {
                 ")" => {
                     self.bump();
                     break;
                 }
-                "|" | "," | "..." | "^" => {
+                "..." => {
+                    self.bump();
+                    extensible = true;
+                }
+                "|" | "," | "^" => {
                     self.bump();
                 }
                 "SIZE" => {
@@ -435,8 +463,10 @@ impl Parser<'_> {
         }
         if size {
             out.sizes.extend(ranges);
+            out.sizes_extensible |= extensible;
         } else {
             out.values.extend(ranges);
+            out.values_extensible |= extensible;
         }
         Ok(())
     }

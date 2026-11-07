@@ -21,6 +21,9 @@
 /// Code generated from the data files; see the banner of each file.
 pub mod generated;
 
+/// Runtime of the generated types: recognising, decoding and encoding values.
+pub mod asn;
+
 /// Vocabulary of the generated code.
 pub mod schema;
 

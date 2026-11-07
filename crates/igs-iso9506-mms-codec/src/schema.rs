@@ -37,6 +37,17 @@ pub struct Tag {
     pub tagging: Tagging,
 }
 
+impl Tag {
+    /// A tag.
+    pub const fn new(class: TagClass, number: u32, tagging: Tagging) -> Self {
+        Self {
+            class,
+            number,
+            tagging,
+        }
+    }
+}
+
 /// Whether a component must appear.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Presence {

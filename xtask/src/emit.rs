@@ -5,8 +5,8 @@
 //! Turn the parsed modules and the data files into Rust text.
 //!
 //! Only the types reachable from [`ROOTS`] are generated. Service CHOICEs keep the services in
-//! scope and gain an `Unsupported` variant; [`OPAQUE`] types stay raw BER. Decoding and encoding
-//! are added to this generator by the codec tasks.
+//! scope and gain an `Unsupported` variant; [`OPAQUE`] types stay raw BER. Every type implements
+//! the `Codec` trait of the runtime module `asn` of the codec crate.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Write;
@@ -27,6 +27,23 @@ const OPAQUE: [&str; 9] = [
     "AdditionalService-Error",
     "Name",
     "RelativeDistinguishedName",
+];
+
+/// Types defined outside the modules read, with their universal tag: X.501 §9.2 defines `Name` as a
+/// CHOICE whose only alternative is a SEQUENCE OF, and §9.3 `RelativeDistinguishedName` as a SET OF.
+const FOREIGN: [(&str, u32); 2] = [("Name", 16), ("RelativeDistinguishedName", 17)];
+
+/// SEQUENCEs that skip the encodings they do not know: X.227 §7.4 asks it of an incoming AARQ.
+const LENIENT: [&str; 1] = ["AARQ-apdu"];
+
+/// Types whose constraint is not checked: the edition read fixes the size of the CBB bit
+/// strings, while a peer of an earlier version sends fewer bits (85 and 11 on the bench, task F5).
+/// Task C7 settles their reading.
+const UNCHECKED: [&str; 4] = [
+    "ServiceSupportOptions",
+    "ParameterSupportOptions",
+    "AdditionalSupportOptions",
+    "AdditionalCBBOptions",
 ];
 
 /// Members kept as raw BER: their alternatives belong to services out of scope.
@@ -83,12 +100,63 @@ fn shout(name: &str) -> String {
     snake(name).trim_end_matches('_').to_uppercase()
 }
 
+/// The Rust type of a use of an ASN.1 type. `Plain` carries the Rust type and its codec kind.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Rust {
     Unit,
-    Plain(&'static str),
+    Plain(&'static str, String),
     Named(String),
     List(Box<Rust>),
+}
+
+fn plain(rust: &'static str, kind: &str) -> Rust {
+    Rust::Plain(rust, format!("asn::{kind}"))
+}
+
+/// The identifiers that can start a value: tags as (class, number), any context tag (the
+/// `Unsupported` variant), or any tag at all (open types).
+#[derive(Clone, Debug, Default)]
+struct Idents {
+    any: bool,
+    any_context: bool,
+    tags: BTreeSet<(u8, u32)>,
+}
+
+fn class_index(class: Class) -> u8 {
+    match class {
+        Class::Universal => 0,
+        Class::Application => 1,
+        Class::Context => 2,
+        Class::Private => 3,
+    }
+}
+
+impl Idents {
+    fn one(class: Class, number: u32) -> Self {
+        Self {
+            tags: BTreeSet::from([(class_index(class), number)]),
+            ..Self::default()
+        }
+    }
+
+    fn universal(number: u32) -> Self {
+        Self::one(Class::Universal, number)
+    }
+
+    fn join(&mut self, other: &Idents) {
+        self.any |= other.any;
+        self.any_context |= other.any_context;
+        self.tags.extend(other.tags.iter().copied());
+    }
+
+    fn overlaps(&self, other: &Idents) -> bool {
+        let context = |i: &Idents| i.any_context || i.tags.iter().any(|t| t.0 == 2);
+        (self.any && (other.any || other.any_context || !other.tags.is_empty()))
+            || (other.any && (self.any_context || !self.tags.is_empty()))
+            || (self.any_context && context(other))
+            || (other.any_context && context(self))
+            || !self.tags.is_disjoint(&other.tags)
+    }
 }
 
 struct Field {
@@ -97,6 +165,7 @@ struct Field {
     rust: Rust,
     tag: Option<Tag>,
     presence: String,
+    idents: Idents,
 }
 
 enum Body {
@@ -125,6 +194,8 @@ pub struct Generator<'a> {
     items: BTreeMap<String, Item>,
     queue: VecDeque<String>,
     seen: BTreeSet<String>,
+    /// Codec kinds of the opaque types, with the identifiers they accept.
+    opaque: BTreeMap<String, Idents>,
 }
 
 impl<'a> Generator<'a> {
@@ -147,6 +218,7 @@ impl<'a> Generator<'a> {
             items: BTreeMap::new(),
             queue: VecDeque::new(),
             seen: BTreeSet::new(),
+            opaque: BTreeMap::new(),
         }
     }
 
@@ -173,10 +245,55 @@ impl<'a> Generator<'a> {
             }
             kind = target.kind;
         }
-        if matches!(kind, Kind::Choice(_) | Kind::Raw) {
+        if matches!(kind, Kind::Choice(_) | Kind::Raw(None)) {
             tag.tagging = Tagging::Explicit;
         }
         Ok(Some(tag))
+    }
+
+    /// The identifiers that can start a value of `ty`, its own tag included.
+    fn idents(&self, ty: &Type) -> Result<Idents, Fail> {
+        if let Some(tag) = ty.tag {
+            return Ok(Idents::one(tag.class, tag.number));
+        }
+        Ok(match &ty.kind {
+            Kind::Boolean => Idents::universal(1),
+            Kind::Integer(_) => Idents::universal(2),
+            Kind::BitString(_) => Idents::universal(3),
+            Kind::OctetString => Idents::universal(4),
+            Kind::Null => Idents::universal(5),
+            Kind::ObjectIdentifier => Idents::universal(6),
+            Kind::Enumerated(_) => Idents::universal(10),
+            Kind::Text(n) | Kind::Raw(Some(n)) => Idents::universal(*n),
+            Kind::Raw(None) => Idents {
+                any: true,
+                ..Idents::default()
+            },
+            Kind::Sequence(_) | Kind::SequenceOf(_) => Idents::universal(16),
+            Kind::Choice(members) => {
+                let mut out = Idents::default();
+                for m in members {
+                    out.join(&self.idents(&m.ty)?);
+                }
+                out
+            }
+            Kind::Reference(name) if SERVICE_CHOICES.iter().any(|(n, _)| n == name) => Idents {
+                any_context: true,
+                ..Idents::default()
+            },
+            Kind::Reference(name) => match FOREIGN.iter().find(|(n, _)| n == name) {
+                Some((_, number)) => Idents::universal(*number),
+                None => self.idents(&self.lookup(name)?)?,
+            },
+        })
+    }
+
+    fn opaque_kind(&mut self, name: String, ty: &Type) -> Result<Rust, Fail> {
+        let mut bare = ty.clone();
+        bare.tag = None;
+        let idents = self.idents(&bare)?;
+        self.opaque.insert(name.clone(), idents);
+        Ok(Rust::Plain("RawBer", name))
     }
 
     fn hoist(&mut self, name: String, ty: &Type) -> Result<Rust, Fail> {
@@ -191,20 +308,34 @@ impl<'a> Generator<'a> {
     }
 
     fn rust(&mut self, ty: &Type, hint: &str) -> Result<Rust, Fail> {
-        let plain = ty.constraint == Constraint::default();
+        let bare = ty.constraint == Constraint::default();
         Ok(match &ty.kind {
-            Kind::Boolean => Rust::Plain("bool"),
+            Kind::Boolean => plain("bool", "Boolean"),
             Kind::Null => Rust::Unit,
-            Kind::Integer(named) if named.is_empty() && plain => Rust::Plain("i64"),
-            Kind::BitString(named) if named.is_empty() && plain => Rust::Plain("BitString"),
-            Kind::OctetString if plain => Rust::Plain("Vec<u8>"),
-            Kind::Text if plain => Rust::Plain("String"),
-            Kind::ObjectIdentifier => Rust::Plain("ObjectIdentifier"),
-            Kind::Raw => Rust::Plain("RawBer"),
-            Kind::SequenceOf(inner) if plain => {
+            Kind::Integer(named) if named.is_empty() && bare => plain("i64", "Integer"),
+            Kind::Enumerated(named) if named.is_empty() && bare => plain("i64", "Enumerated"),
+            Kind::BitString(named) if named.is_empty() && bare => plain("BitString", "BitStr"),
+            Kind::OctetString if bare => plain("Vec<u8>", "Octets"),
+            Kind::Text(number) if bare => {
+                let kind = match number {
+                    12 => "Utf8",
+                    23 => "UtcTime",
+                    24 => "GeneralizedTime",
+                    25 => "Graphic",
+                    _ => "Visible",
+                };
+                plain("String", kind)
+            }
+            Kind::ObjectIdentifier => plain("ObjectIdentifier", "Oid"),
+            Kind::Raw(Some(8)) => plain("RawBer", "External"),
+            Kind::Raw(Some(_)) => plain("RawBer", "EmbeddedPdv"),
+            Kind::Raw(None) => plain("RawBer", "Open"),
+            Kind::SequenceOf(inner) if bare => {
                 Rust::List(Box::new(self.rust(inner, &format!("{hint}Item"))?))
             }
-            Kind::Reference(name) if OPAQUE.contains(&name.as_str()) => Rust::Plain("RawBer"),
+            Kind::Reference(name) if OPAQUE.contains(&name.as_str()) => {
+                self.opaque_kind(format!("Opaque{}", camel(name)), ty)?
+            }
             Kind::Reference(name) => {
                 if self.seen.insert(name.clone()) {
                     self.queue.push_back(name.clone());
@@ -219,7 +350,7 @@ impl<'a> Generator<'a> {
         let opaque = OPAQUE_MEMBERS.contains(&(asn, member.name.as_str()));
         let hint = format!("{parent}{}", camel(&member.name));
         let rust = if opaque {
-            Rust::Plain("RawBer")
+            self.opaque_kind(format!("Opaque{hint}"), &member.ty)?
         } else {
             self.rust(&member.ty, &hint)?
         };
@@ -234,6 +365,7 @@ impl<'a> Generator<'a> {
             rust,
             tag: self.effective(member.ty.tag, &member.ty)?,
             presence,
+            idents: self.idents(&member.ty)?,
         })
     }
 
@@ -266,8 +398,12 @@ impl<'a> Generator<'a> {
                 bare.tag = None;
                 bare.constraint = Constraint::default();
                 let (named, bits) = match other {
-                    Kind::Integer(n) | Kind::Enumerated(n) => {
+                    Kind::Integer(n) => {
                         bare.kind = Kind::Integer(Vec::new());
+                        (n.clone(), false)
+                    }
+                    Kind::Enumerated(n) => {
+                        bare.kind = Kind::Enumerated(Vec::new());
                         (n.clone(), false)
                     }
                     Kind::BitString(n) => {
@@ -284,9 +420,10 @@ impl<'a> Generator<'a> {
                 }
             }
         };
+        check_body(asn, &body)?;
         Ok(Item {
             asn: asn.to_owned(),
-            tag: ty.tag,
+            tag: self.effective(ty.tag, ty)?,
             body,
         })
     }
@@ -337,10 +474,24 @@ impl<'a> Generator<'a> {
         false
     }
 
+    /// The codec kind of a use of a type, a type implementing `asn::Codec`.
+    fn kind(&self, owner: &str, rust: &Rust) -> String {
+        match rust {
+            Rust::Unit => "asn::Null".to_owned(),
+            Rust::Plain(_, kind) => kind.clone(),
+            Rust::Named(n) if self.reaches(n, owner) => format!("asn::Boxed<{n}>"),
+            Rust::Named(n) => n.clone(),
+            Rust::List(inner) => match inner.as_ref() {
+                Rust::Named(n) => format!("asn::ListOf<{n}>"),
+                other => format!("asn::ListOf<{}>", self.kind(owner, other)),
+            },
+        }
+    }
+
     fn text(&self, owner: &str, rust: &Rust) -> String {
         match rust {
             Rust::Unit => "()".to_owned(),
-            Rust::Plain(p) => (*p).to_owned(),
+            Rust::Plain(p, _) => (*p).to_owned(),
             Rust::Named(n) if self.reaches(n, owner) => format!("Box<{n}>"),
             Rust::Named(n) => n.clone(),
             Rust::List(inner) => match inner.as_ref() {
@@ -354,6 +505,8 @@ impl<'a> Generator<'a> {
         let mut o = format!(
             "{banner}\n#![allow(clippy::large_enum_variant, clippy::enum_variant_names, \
              clippy::upper_case_acronyms)]\n\n\
+             use crate::asn;\n\
+             use crate::ber::{{self, Element, Writer}};\n\
              use crate::schema::{{BitString, Member, ObjectIdentifier, Presence, RawBer, Tag, \
              TagClass, Tagging}};\n\n\
              /// Number of generated types.\npub const TYPE_COUNT: usize = {};\n\n",
@@ -361,6 +514,10 @@ impl<'a> Generator<'a> {
         );
         for (name, item) in &self.items {
             emit_item(self, &mut o, name, item)?;
+            emit_codec(self, &mut o, name, item)?;
+        }
+        for (name, idents) in &self.opaque {
+            emit_opaque(&mut o, name, idents)?;
         }
         Ok(o)
     }
@@ -385,7 +542,7 @@ fn tag_value(tag: Tag) -> String {
         Tagging::Explicit => "Explicit",
     };
     format!(
-        "Tag {{ class: TagClass::{class}, number: {}, tagging: Tagging::{tagging} }}",
+        "Tag::new(TagClass::{class}, {}, Tagging::{tagging})",
         tag.number
     )
 }
@@ -498,6 +655,355 @@ fn emit_item(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<(
         writeln!(o, "    pub const TAG: Tag = {};", tag_value(tag))?;
     }
     writeln!(o, "}}\n")?;
+    Ok(())
+}
+
+/// X.680 §29.3 and §25.6: the tags of the alternatives differ, and so do the tags of an optional
+/// component and of the components that may follow it.
+fn check_body(asn: &str, body: &Body) -> Result<(), Fail> {
+    match body {
+        Body::Enum { alternatives, .. } => {
+            for (i, a) in alternatives.iter().enumerate() {
+                for b in alternatives.iter().skip(i + 1) {
+                    if a.idents.overlaps(&b.idents) {
+                        return Err(format!("{asn}: {} and {} share a tag", a.asn, b.asn).into());
+                    }
+                }
+            }
+        }
+        Body::Struct(fields) => {
+            for (i, a) in fields.iter().enumerate() {
+                if a.presence == "Presence::Required" {
+                    continue;
+                }
+                for b in fields.iter().skip(i + 1) {
+                    if a.idents.overlaps(&b.idents) {
+                        return Err(format!("{asn}: {} and {} share a tag", a.asn, b.asn).into());
+                    }
+                    if b.presence == "Presence::Required" {
+                        break;
+                    }
+                }
+            }
+        }
+        Body::Newtype { .. } => {}
+    }
+    Ok(())
+}
+
+fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<(), Fail> {
+    let ty = &item.asn;
+    // The own tag replaces the base identifiers when it is implicit.
+    let base_accepts = item.tag.is_none_or(|t| t.tagging == Tagging::Explicit);
+    writeln!(o, "impl {name} {{")?;
+    match &item.body {
+        Body::Struct(fields) => {
+            if base_accepts {
+                writeln!(
+                    o,
+                    "fn base_accepts(id: ber::Identifier) -> bool {{ asn::is_universal(id, 16) }}"
+                )?;
+            }
+            let known = if LENIENT.contains(&ty.as_str()) {
+                let tests: Vec<String> = fields
+                    .iter()
+                    .map(|f| {
+                        format!(
+                            "asn::accepts::<{}>({}, id)",
+                            g.kind(name, &f.rust),
+                            tag_text(f.tag)
+                        )
+                    })
+                    .collect();
+                format!("Some(|id: ber::Identifier| {})", tests.join(" || "))
+            } else {
+                "None".to_owned()
+            };
+            writeln!(
+                o,
+                "fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {{"
+            )?;
+            writeln!(o, "let mut c = asn::Components::new(e, {ty:?}, {known})?;")?;
+            for f in fields {
+                let kind = g.kind(name, &f.rust);
+                if f.presence == "Presence::Required" {
+                    writeln!(
+                        o,
+                        "let {} = c.required::<{kind}>({}, {:?})?;",
+                        f.name,
+                        tag_text(f.tag),
+                        f.asn
+                    )?;
+                } else {
+                    writeln!(
+                        o,
+                        "let {} = c.optional::<{kind}>({})?;",
+                        f.name,
+                        tag_text(f.tag)
+                    )?;
+                }
+            }
+            let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+            writeln!(o, "c.finish()?;\nOk(Self {{ {} }})\n}}", names.join(", "))?;
+            writeln!(
+                o,
+                "fn base_encode(&self, w: &mut Writer, implicit: Option<ber::Identifier>) -> Result<(), asn::Error> {{"
+            )?;
+            if fields.is_empty() {
+                writeln!(
+                    o,
+                    "w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |_| Ok(()))"
+                )?;
+            } else {
+                writeln!(
+                    o,
+                    "w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {{"
+                )?;
+                for f in fields {
+                    let kind = g.kind(name, &f.rust);
+                    let call = if f.presence == "Presence::Required" {
+                        "encode"
+                    } else {
+                        "encode_optional"
+                    };
+                    writeln!(
+                        o,
+                        "asn::{call}::<{kind}>({}, &self.{}, w)?;",
+                        tag_text(f.tag),
+                        f.name
+                    )?;
+                }
+                writeln!(o, "Ok(())\n}})")?;
+            }
+            writeln!(o, "}}")?;
+        }
+        Body::Enum {
+            alternatives,
+            unsupported,
+        } => {
+            let mut tests: Vec<String> = alternatives
+                .iter()
+                .map(|f| {
+                    format!(
+                        "asn::accepts::<{}>({}, id)",
+                        g.kind(name, &f.rust),
+                        tag_text(f.tag)
+                    )
+                })
+                .collect();
+            if *unsupported {
+                tests.push("id.class == TagClass::Context".to_owned());
+            }
+            if tests.is_empty() {
+                tests.push("false".to_owned());
+            }
+            if base_accepts {
+                writeln!(
+                    o,
+                    "fn base_accepts(id: ber::Identifier) -> bool {{ {} }}",
+                    tests.join(" || ")
+                )?;
+            }
+            writeln!(
+                o,
+                "fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {{\nlet id = e.identifier;"
+            )?;
+            for f in alternatives {
+                let kind = g.kind(name, &f.rust);
+                let tag = tag_text(f.tag);
+                let variant = camel(&f.asn);
+                if f.rust == Rust::Unit {
+                    writeln!(
+                        o,
+                        "if asn::accepts::<{kind}>({tag}, id) {{ asn::decode::<{kind}>({tag}, e)?; return Ok(Self::{variant}); }}"
+                    )?;
+                } else {
+                    writeln!(
+                        o,
+                        "if asn::accepts::<{kind}>({tag}, id) {{ return Ok(Self::{variant}(asn::decode::<{kind}>({tag}, e)?)); }}"
+                    )?;
+                }
+            }
+            if *unsupported {
+                writeln!(
+                    o,
+                    "if id.class == TagClass::Context {{ return Ok(Self::Unsupported {{ tag: id.number, raw: asn::raw(e, None) }}); }}"
+                )?;
+            }
+            writeln!(
+                o,
+                "Err(asn::Error::NoAlternative {{ ty: {ty:?}, found: id }})\n}}"
+            )?;
+            writeln!(
+                o,
+                "fn base_encode(&self, w: &mut Writer, implicit: Option<ber::Identifier>) -> Result<(), asn::Error> {{"
+            )?;
+            writeln!(o, "asn::no_implicit(implicit, {ty:?})?;\nmatch self {{")?;
+            for f in alternatives {
+                let kind = g.kind(name, &f.rust);
+                let tag = tag_text(f.tag);
+                let variant = camel(&f.asn);
+                if f.rust == Rust::Unit {
+                    writeln!(
+                        o,
+                        "Self::{variant} => asn::encode::<{kind}>({tag}, &(), w),"
+                    )?;
+                } else {
+                    writeln!(
+                        o,
+                        "Self::{variant}(v) => asn::encode::<{kind}>({tag}, v, w),"
+                    )?;
+                }
+            }
+            if *unsupported {
+                writeln!(
+                    o,
+                    "Self::Unsupported {{ tag, raw }} => asn::write_unsupported(w, *tag, raw),"
+                )?;
+            }
+            writeln!(o, "}}\n}}")?;
+        }
+        Body::Newtype {
+            inner, constraint, ..
+        } => {
+            let kind = g.kind(name, inner);
+            let checked = !UNCHECKED.contains(&ty.as_str());
+            let values = checked && !constraint.values.is_empty() && !constraint.values_extensible;
+            let sizes = checked && !constraint.sizes.is_empty() && !constraint.sizes_extensible;
+            if values && !matches!(inner, Rust::Plain("i64", _)) {
+                return Err(
+                    format!("{ty}: value constraint on a type that is not an integer").into(),
+                );
+            }
+            let checked = values || sizes;
+            if base_accepts {
+                writeln!(
+                    o,
+                    "fn base_accepts(id: ber::Identifier) -> bool {{ <{kind} as asn::Codec>::accepts(id) }}"
+                )?;
+            }
+            writeln!(
+                o,
+                "fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {{"
+            )?;
+            if checked {
+                writeln!(
+                    o,
+                    "let value = Self(<{kind} as asn::Codec>::decode(e)?);\nvalue.check()?;\nOk(value)\n}}"
+                )?;
+            } else {
+                writeln!(o, "Ok(Self(<{kind} as asn::Codec>::decode(e)?))\n}}")?;
+            }
+            writeln!(
+                o,
+                "fn base_encode(&self, w: &mut Writer, implicit: Option<ber::Identifier>) -> Result<(), asn::Error> {{"
+            )?;
+            if checked {
+                writeln!(o, "self.check()?;")?;
+            }
+            writeln!(
+                o,
+                "<{kind} as asn::Codec>::encode(&self.0, w, implicit)\n}}"
+            )?;
+            if checked {
+                let text = g.text(name, inner);
+                writeln!(
+                    o,
+                    "/// The value, if it meets the constraint of the type.\npub fn new(value: {text}) -> Result<Self, asn::Error> {{ let value = Self(value); value.check()?; Ok(value) }}"
+                )?;
+                writeln!(
+                    o,
+                    "/// Checks the value against the constraint of the type.\npub fn check(&self) -> Result<(), asn::Error> {{"
+                )?;
+                if values {
+                    writeln!(o, "asn::check_values({ty:?}, Self::VALUES, self.0)?;")?;
+                }
+                if sizes {
+                    writeln!(o, "asn::check_sizes({ty:?}, Self::SIZES, &self.0)?;")?;
+                }
+                writeln!(o, "Ok(())\n}}")?;
+            }
+        }
+    }
+    writeln!(o, "}}\n")?;
+
+    writeln!(
+        o,
+        "impl asn::Codec for {name} {{\ntype Value = Self;\nconst NAME: &'static str = {ty:?};"
+    )?;
+    let (accepts, decode, encode) = match item.tag {
+        None => (
+            "Self::base_accepts(id)".to_owned(),
+            "Self::base_decode(e)".to_owned(),
+            "value.base_encode(w, implicit)".to_owned(),
+        ),
+        Some(tag) if tag.tagging == Tagging::Implicit => (
+            "asn::is_tag(Self::TAG, id)".to_owned(),
+            "Self::base_decode(e)".to_owned(),
+            "value.base_encode(w, Some(implicit.unwrap_or(asn::identifier(Self::TAG))))".to_owned(),
+        ),
+        Some(_) => (
+            "asn::is_tag(Self::TAG, id)".to_owned(),
+            "asn::explicit(e, Self::NAME, Self::base_accepts, Self::base_decode)".to_owned(),
+            "w.constructed(implicit.unwrap_or(asn::identifier(Self::TAG)), |w| value.base_encode(w, None))".to_owned(),
+        ),
+    };
+    writeln!(
+        o,
+        "fn accepts(id: ber::Identifier) -> bool {{ {accepts} }}\n\
+         fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {{ {decode} }}\n\
+         fn encode(value: &Self, w: &mut Writer, implicit: Option<ber::Identifier>) -> Result<(), asn::Error> {{ {encode} }}\n}}\n"
+    )?;
+    Ok(())
+}
+
+fn emit_opaque(o: &mut String, name: &str, idents: &Idents) -> Result<(), Fail> {
+    let asn = name.trim_start_matches("Opaque");
+    let classes = ["Universal", "Application", "Context", "Private"];
+    let mut tests: Vec<String> = idents
+        .tags
+        .iter()
+        .map(|(class, number)| {
+            format!(
+                "id.class == TagClass::{} && id.number == {number}",
+                classes[usize::from(*class)]
+            )
+        })
+        .collect();
+    if tests.len() > 1 {
+        tests = tests.into_iter().map(|t| format!("({t})")).collect();
+    }
+    if idents.any_context {
+        tests.push("id.class == TagClass::Context".to_owned());
+    }
+    if idents.any {
+        tests = vec!["true".to_owned()];
+    }
+    if tests.is_empty() {
+        return Err(format!("{name}: no tag known").into());
+    }
+    let fixed = match (idents.any || idents.any_context, idents.tags.iter().next()) {
+        (false, Some((class, number))) if idents.tags.len() == 1 => format!(
+            "Some(ber::Identifier::new(TagClass::{}, true, {number}))",
+            classes[usize::from(*class)]
+        ),
+        _ => "None".to_owned(),
+    };
+    let accepts = if idents.any {
+        "fn accepts(_: ber::Identifier) -> bool { true }".to_owned()
+    } else {
+        format!(
+            "fn accepts(id: ber::Identifier) -> bool {{ {} }}",
+            tests.join(" || ")
+        )
+    };
+    writeln!(
+        o,
+        "/// Codec of a type kept as raw BER.\n#[derive(Debug, Clone, Copy, PartialEq, Eq)]\npub struct {name};\n\n\
+         impl asn::Codec for {name} {{\ntype Value = RawBer;\nconst NAME: &'static str = {asn:?};\n{accepts}\n\
+         fn decode(e: &Element<'_>) -> Result<RawBer, asn::Error> {{ Ok(asn::raw(e, {fixed})) }}\n\
+         fn encode(value: &RawBer, w: &mut Writer, implicit: Option<ber::Identifier>) -> Result<(), asn::Error> {{ asn::write_raw(w, value, Self::accepts, implicit) }}\n}}\n"
+    )?;
     Ok(())
 }
 
@@ -715,5 +1221,52 @@ mod tests {
         let (module, _) = fixture();
         assert_eq!(module.assignments.len(), 4);
         assert!(!module.assignments.contains_key("low"));
+    }
+
+    const CHECKS: &str = "Checks DEFINITIONS ::= BEGIN
+        Twice ::= CHOICE { a INTEGER, b INTEGER }
+        Hidden ::= SEQUENCE { a INTEGER OPTIONAL, b INTEGER }
+        Fine ::= SEQUENCE { a [0] INTEGER OPTIONAL, b INTEGER, c INTEGER OPTIONAL }
+        Open ::= CHOICE { a INTEGER, b ANY }
+        Colour ::= ENUMERATED { red (0), green (1) }
+        Shade ::= ENUMERATED { red (0), ..., green (1) }
+        Small ::= INTEGER (0..7, ...)
+        Name ::= VisibleString (SIZE (1..32))
+        END";
+
+    fn checked(name: &str) -> Result<Item, Fail> {
+        let modules = [Module::parse(CHECKS).unwrap()];
+        let conformance = Conformance {
+            mms_services: Vec::new(),
+            mms_pdus: Vec::new(),
+        };
+        let mut generator = Generator::new(&modules, &conformance);
+        let ty = modules[0].type_of(name).unwrap();
+        generator.item(name, name, &ty)
+    }
+
+    #[test]
+    fn ambiguous_tags_are_refused() {
+        for name in ["Twice", "Hidden", "Open"] {
+            let error = checked(name).err().map(|e| e.to_string());
+            assert!(error.is_some_and(|e| e.contains("share a tag")), "{name}");
+        }
+        assert!(checked("Fine").is_ok());
+    }
+
+    #[test]
+    fn constraints_record_extension_markers() {
+        let module = Module::parse(CHECKS).unwrap();
+        let constraint = |name: &str| module.type_of(name).unwrap().constraint;
+        let colour = constraint("Colour");
+        assert_eq!(colour.values, vec![(Some(0), Some(0)), (Some(1), Some(1))]);
+        assert!(!colour.values_extensible);
+        assert!(constraint("Shade").values.is_empty());
+        let small = constraint("Small");
+        assert_eq!(small.values, vec![(Some(0), Some(7))]);
+        assert!(small.values_extensible);
+        let name = constraint("Name");
+        assert_eq!(name.sizes, vec![(Some(1), Some(32))]);
+        assert!(!name.sizes_extensible);
     }
 }

@@ -88,6 +88,13 @@ impl Writer {
         self.out.extend_from_slice(contents);
     }
 
+    /// An encoding with the identifier as given, form included, and the given contents.
+    pub fn element(&mut self, id: Identifier, contents: &[u8]) {
+        self.identifier(id);
+        self.length(contents.len());
+        self.out.extend_from_slice(contents);
+    }
+
     /// A constructed encoding whose contents `body` writes.
     pub fn constructed<E>(
         &mut self,
