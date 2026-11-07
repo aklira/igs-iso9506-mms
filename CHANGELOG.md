@@ -5,6 +5,8 @@ All notable changes to this project are recorded in this file. The format follow
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-07
+
 ### Added
 
 - `igs-iso9506-mms-codec`: BER, and the ASN.1 types of the ACSE, presentation, session, COTP and MMS

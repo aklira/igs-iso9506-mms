@@ -4,7 +4,7 @@
 
 [package]
 name = "igs-iso9506-mms"
-version = "0.1.0"
+version = "1.0.0"
 description = "Async MMS client and server over TCP and TLS."
 edition.workspace = true
 rust-version.workspace = true
@@ -15,8 +15,8 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-igs-iso9506-mms-codec = { path = "../igs-iso9506-mms-codec", version = "0.1.0" }
-igs-iso9506-mms-link = { path = "../igs-iso9506-mms-link", version = "0.1.0" }
+igs-iso9506-mms-codec = { path = "../igs-iso9506-mms-codec", version = "1.0.0" }
+igs-iso9506-mms-link = { path = "../igs-iso9506-mms-link", version = "1.0.0" }
 # tokio: the same features as igs-iec104 (task T1, approved by the maintainer); `net` for TCP.
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time"] }
 

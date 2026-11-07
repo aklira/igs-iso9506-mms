@@ -4,7 +4,7 @@
 
 [package]
 name = "igs-iso9506-mms-codec"
-version = "0.1.0"
+version = "1.0.0"
 description = "BER and the encoding of TPKT, COTP, session, presentation, ACSE and MMS PDUs: no I/O."
 edition.workspace = true
 rust-version.workspace = true
