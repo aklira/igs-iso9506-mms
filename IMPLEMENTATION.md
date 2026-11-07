@@ -404,7 +404,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | L4 Association and Initiate | [x] |
 | L5 Requests | [x] |
 | L6 Interop of the stack | [ ] |
-| T1 Transport | [ ] |
+| T1 Transport | [x] |
 | T2 Client API | [ ] |
 | T3 `igsmms-client` binary | [ ] |
 | T4 Client interop matrix | [ ] |

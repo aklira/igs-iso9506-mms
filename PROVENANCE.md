@@ -531,8 +531,49 @@ silent, to be confirmed by an observation test against other implementations.
   on both sides, the timeout reported once, the accepted and refused cancels, a cancel of an unknown
   request, the unconfirmed services, and the abort.
 
+### D-020 — The transport driver on tokio (task T1)
+
+- **Decision**: the client crate `igs-iso9506-mms` runs the transport connection of task L2 on tokio
+  (`src/transport.rs`). A driver task owns the byte stream and the sans-I/O connection. The handle,
+  `Transport`, exchanges TSDUs with the driver over two bounded channels of `CHANNEL_CAPACITY`
+  (16 TSDUs) in each direction.
+  - Stream: any `ByteStream` (`AsyncRead + AsyncWrite + Unpin + Send + 'static`). TCP is one, through
+    `connect_tcp`, which sets `TCP_NODELAY`; TLS will be another (task X1). The tests use an in-memory
+    duplex stream as the network.
+  - Back-pressure: a sender waits while its channel is full. The driver stops reading the stream
+    while it cannot deliver a TSDU, so the flow control of the stream reaches the peer. A caller that
+    sends and receives in the same task must receive concurrently, or it waits.
+  - Connect: the initiator's connect timer is the connect timeout of the configuration, on the tokio
+    clock; `connect_tcp` also runs its TCP connect within it. The responder has no timer, as in
+    task L2. Expiry is `ConnectTimeout`.
+  - Shutdown: `Transport::shutdown` drops the outbound channel. The TSDUs already sent are written,
+    then the connection is released: class 0 releases implicitly, with the network connection
+    (X.224 §5.4.4), so the stream is shut down and nothing is sent for the release. TSDUs received
+    and not yet taken are discarded. The return value is the reason the driver stopped, when it
+    stopped with an error.
+  - Errors: a stream failure is `Io`; a peer's end of stream is `PeerClosed`; a transport closure
+    keeps its cause from L2 (`Closed`); a driver that has stopped returns `Stopped` to a sender. A
+    reconnect policy is for task T2.
+  - Read buffer: 8192 octets. TCP port 102 (RFC 1006) is the caller's choice.
+- **Dependency**: `tokio` 1 (MIT), with the features of `igs-iec104`: `io-util`, `macros`, `net`,
+  `rt`, `sync`, `time`; `test-util` in the development dependencies, for the paused clock. Its
+  transitive crates (`bytes`, `mio`, `libc`, `socket2`, `pin-project-lite`, `tokio-macros`,
+  `proc-macro2`, `quote`, `syn`, `unicode-ident`) are MIT, Apache-2.0 or Unicode-3.0, as
+  `cargo deny check` reports. The reason: the MMS client needs an asynchronous runtime, and the same
+  runtime is already the choice of `igs-iec104`.
+- **Sources**: ITU-T X.224 §5.4.4 (implicit release in class 0); RFC 1006 (TCP port 102), as in
+  D-015.
+- **Confidence**: high for the behaviour, which the loopback tests check on the stream and on the
+  paused clock; medium for the capacity of 16, which is an operational choice to revisit with the
+  bench.
+- **Test**: `crates/igs-iso9506-mms/tests/loopback.rs`, 11 tests: both directions, many TSDUs in order,
+  a 200 000-octet TSDU, an empty TSDU, a clean shutdown seen by the peer, the TSDUs written before
+  the release, a slow receiver holding back the sender, the connect timeout on the paused clock, a
+  peer that closes, a responder that declines, and an invalid configuration.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
 | --- | --- | --- | --- |
+| tokio 1.54.1 and its dependencies | MIT, Apache-2.0, Unicode-3.0 (see `cargo deny check`) | Asynchronous runtime and TCP of the client crate (D-020) | crates.io; no source read beyond its public API |
 | libiec61850 | GPL-3.0 (`COPYING`, GitHub licence metadata) | Reference peer of the bench, tag `v1.6.2.1`, commit `c28c27c`, black box only; image built locally, not distributed | Source never read |
