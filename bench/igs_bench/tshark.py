@@ -55,3 +55,9 @@ def errors(bench: Bench, service: str = "capture") -> list[str]:
 def find(frames: list[Frame], *, src: str, protocol: str = "mms", info: str | None = None) -> list[Frame]:
     """Frames sent by `src` that carry `protocol` and match `info`."""
     return [f for f in frames if f.src == src and protocol in f.protocols and (info is None or info in f.info)]
+
+
+def values(bench: Bench, field: str, service: str = "capture") -> list[str]:
+    """The non-empty values of one field over the MMS frames of the capture."""
+    out = bench.exec(service, "tshark", "-r", _path(bench), "-Y", "mms", "-T", "fields", "-e", field)
+    return [v for line in out.stdout.splitlines() for v in line.split(",") if v.strip()]
