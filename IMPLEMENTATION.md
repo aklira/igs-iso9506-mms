@@ -391,7 +391,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | F5 Interop bench skeleton | [x] |
 | C1 BER | [x] |
 | C2 TPKT and COTP TPDUs | [x] |
-| C3 Session SPDUs | [ ] |
+| C3 Session SPDUs | [x] |
 | C4 Presentation PPDUs | [ ] |
 | C5 ACSE APDUs | [ ] |
 | C6 MMS common types | [ ] |
