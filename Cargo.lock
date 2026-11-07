@@ -146,6 +146,7 @@ dependencies = [
  "clap",
  "igs-iso9506-mms-codec",
  "igs-iso9506-mms-link",
+ "proptest",
  "tokio",
 ]
 
