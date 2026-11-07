@@ -402,7 +402,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | L2 COTP connection | [x] |
 | L3 Session and presentation connection | [x] |
 | L4 Association and Initiate | [x] |
-| L5 Requests | [ ] |
+| L5 Requests | [x] |
 | L6 Interop of the stack | [ ] |
 | T1 Transport | [ ] |
 | T2 Client API | [ ] |

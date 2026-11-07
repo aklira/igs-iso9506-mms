@@ -25,3 +25,4 @@ pub mod transport;
 pub mod upper;
 
 pub use config::{ConfigError, LinkConfig};
+pub mod requests;

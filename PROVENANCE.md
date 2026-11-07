@@ -487,6 +487,50 @@ silent, to be confirmed by an observation test against other implementations.
   of each value, the refusals with their classes, the services checked on send and receive, the
   conclude order of Annex A, the abort, and the time-out of a request with no answer.
 
+### D-019 — Requests of the association: invoke IDs, limits, cancel, reject, timeouts
+
+- **Decision**: `requests::Requests` (crate `igs-iso9506-mms-link`, module `requests`) owns the
+  association of D-018 and carries the confirmed and unconfirmed requests. It takes the time as an
+  argument, so that a test runs on a fake clock.
+  - Invoke IDs: the requester gives each request an invoke ID not used by an outstanding one, from a
+    counter that starts at 1 and wraps (ISO 9506-2 §7.1: unambiguous among the outstanding requests).
+  - Limits: the negotiated values of the Initiate response are the outstanding limits by role
+    (ISO 9506-1 §8.2.1.2.2, §8.2.1.2.3). The calling user creates the transactions of its requests
+    with the calling limit, the called user with the called one. This end's own requests are limited
+    by its role's value, and the requests of the other end by the other role's value. A request
+    beyond the limit is refused on sending, and an incoming one beyond it is rejected with
+    max-serv-outstanding-exceeded (ISO 9506-2 §8.6).
+  - A repeated invoke ID of an incoming request is rejected as invalid (ISO 9506-2 §7.1).
+  - Responses are matched by invoke ID and by the service: the tag of the choice of the request and
+    of the response is the same for a service (ISO 9506-2 §7.1.1, §7.3.1). An unknown invoke ID, or
+    another service, is rejected: a confirmed-response PDU with invalid-invokeID, and an error with
+    the same reason for the confirmed-error PDU (ISO 9506-2 §6.3.1.1, §6.4).
+  - Cancel (ISO 9506-2 §6.3.1.1, §6.3.1.2, §8.5). A requester cancels a request by its invoke ID; the
+    request keeps its place until the cancel response and the request's final PDU have both arrived,
+    in either order. A cancel that the other end accepts is the cancel response, then the error of
+    the request with service-preempt and cancel (§6.3.1.2, transition 6). A cancel that is refused is
+    a Cancel-ErrorPDU, and the request continues.
+  - A cancel of an unknown request is answered with a Cancel-ErrorPDU and not indicated to the user
+    (ISO 9506-2 §6.4).
+  - A Reject PDU that names a request of this end ends it, when the rejected PDU was that request
+    (confirmed-request category), or clears the cancel (cancel-request category). Other categories
+    concern responses or errors this end sent, and change no state.
+  - A request or unconfirmed PDU that the negotiation does not allow is answered with a Reject PDU,
+    unrecognized-service (ISO 9506-1 §8.2.1.1.8).
+  - Timeouts: a request outstanding for the request timeout of the configuration is reported once
+    with `Timeout`. It stays outstanding and counts against the limit, and its response is still
+    delivered. The layer never cancels it; the user decides. No clause of ISO 9506 gives a timeout
+    behaviour, so this is a choice of this implementation.
+  - Unconfirmed services are sent when the other end serves them, and keep no state.
+- **Sources**: ISO 9506-2 §6.3.1, §6.3.1.1, §6.3.1.2, §6.4, §6.5, §7.1, §7.3, §8.5, §8.6; ISO 9506-1
+  §8.2.1.1.8, §8.2.1.2.2, §8.2.1.2.3, and the Reject service of clause 7 that §6.5 refers to.
+- **Confidence**: high for the invoke IDs, the matching and the cancel rules, which the clauses state;
+  medium for the timeout behaviour, which is a choice.
+- **Test**: `crates/igs-iso9506-mms-link/tests/requests.rs`, 17 tests on both roles, on a fake clock:
+  the request and its response, the reuse of invoke IDs, an unknown or another response, the limits
+  on both sides, the timeout reported once, the accepted and refused cancels, a cancel of an unknown
+  request, the unconfirmed services, and the abort.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
