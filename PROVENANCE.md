@@ -130,6 +130,23 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/transport.rs`.
 
+### D-009 — Session SPDUs: what is decoded, and what is kept
+
+- **Decision**: the SPDUs of the kernel and duplex functional units are decoded field by field:
+  CONNECT, ACCEPT, REFUSE, FINISH, DISCONNECT, ABORT, ABORT ACCEPT, GIVE TOKENS and DATA TRANSFER.
+  Other SPDUs and unknown parameter codes, which §8.2.6 declares valid, are kept as received.
+  A TSDU holds one SPDU, or GIVE TOKENS or PLEASE TOKENS followed by one category 2 SPDU (basic
+  concatenation); extended concatenation, segmenting, OVERFLOW ACCEPT and CONNECT DATA OVERFLOW are
+  out of the profile. Units are written in increasing code order (§8.2.6) and read in any order.
+  A three-octet length indicator is read for short lengths too, and written only from 255. User
+  data of a CONNECT SPDU goes in the User Data parameter up to 512 octets, else in the Extended User
+  Data parameter up to 10 240.
+- **Sources**: ITU-T X.225 §6.3.7, §8.2, §8.3.1 to §8.3.11, §8.3.16; IEC 60870-6-702 table A.61
+  (version 2, duplex, extended concatenation and overflow out of scope). Observation: the CONNECT,
+  ACCEPT and GIVE TOKENS with DATA TRANSFER of the bench peers decode and re-encode octet for octet.
+- **Confidence**: high.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/session.rs`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

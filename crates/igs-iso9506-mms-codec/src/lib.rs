@@ -29,3 +29,6 @@ pub mod ber;
 
 /// ISO transport over TCP: TPKT and the TPDUs of class 0.
 pub mod transport;
+
+/// Session SPDUs of the kernel and duplex functional units.
+pub mod session;
