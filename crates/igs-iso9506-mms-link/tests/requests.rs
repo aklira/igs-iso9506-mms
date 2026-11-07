@@ -535,9 +535,10 @@ fn an_unconfirmed_service_the_peer_does_not_serve_is_not_sent() {
         variable_access_specification: VariableAccessSpecification::ListOfVariable(Vec::new()),
         list_of_access_result: Vec::new(),
     });
-    pair.act(0, Event::Unconfirmed(service));
-    assert!(pair.log[0].iter().any(|a| matches!(a, Action::Misuse(_))));
-    assert!(pair.log[1]
+    // The responder sends the report, which it does not serve: the report is not sent.
+    pair.act(1, Event::Unconfirmed(service));
+    assert!(pair.log[1].iter().any(|a| matches!(a, Action::Misuse(_))));
+    assert!(pair.log[0]
         .iter()
         .all(|a| !matches!(a, Action::Unconfirmed(_))));
 }

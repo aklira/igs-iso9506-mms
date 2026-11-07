@@ -489,11 +489,7 @@ impl Association {
             out.extend(self.release_request());
             return out;
         }
-        let served = if is_request(&pdu) {
-            &session.me
-        } else {
-            &session.peer
-        };
+        let served = serving_view(&session, &pdu, true);
         match mms::validate_cbb(&pdu, served) {
             Ok(()) => vec![Action::Pdu(pdu)],
             Err(error) => vec![Action::Unsupported(pdu, error)],
@@ -546,11 +542,7 @@ impl Association {
         ) {
             return vec![Action::Misuse("Initiate is not sent within an association")];
         }
-        let served = if is_request(&pdu) {
-            &session.peer
-        } else {
-            &session.me
-        };
+        let served = serving_view(&session, &pdu, false);
         if mms::validate_cbb(&pdu, served).is_err() {
             return vec![Action::Misuse("the PDU is not allowed by the negotiation")];
         }
@@ -823,13 +815,24 @@ fn user_data_mms(user_data: &UserData) -> Option<MMSpdu> {
     mms::decode(pdv_of(user_data, MMS_CONTEXT)?).ok()
 }
 
-/// Requests and unconfirmed PDUs are served by the end that receives them; a response by the end
-/// that sends it (ISO 9506-1 §8.2.1.1.8).
+/// A request is served by the end that receives it. A response, and an unconfirmed PDU such as the
+/// information report, which the server sends, are served by the end that sends them: the sender's
+/// services and parameter CBBs apply to them.
 fn is_request(pdu: &MMSpdu) -> bool {
     matches!(
         pdu,
-        MMSpdu::ConfirmedRequestPDU(_) | MMSpdu::UnconfirmedPDU(_) | MMSpdu::CancelRequestPDU(_)
+        MMSpdu::ConfirmedRequestPDU(_) | MMSpdu::CancelRequestPDU(_)
     )
+}
+
+/// The view of the server that checks a PDU: `incoming` PDUs come from the peer, the others are sent by
+/// this end. The end that serves the PDU is the receiver for a request, the sender otherwise.
+fn serving_view<'a>(session: &'a Session, pdu: &MMSpdu, incoming: bool) -> &'a Negotiated {
+    if is_request(pdu) == incoming {
+        &session.me
+    } else {
+        &session.peer
+    }
 }
 
 /// Bits set in both, over the shorter of the two.
@@ -901,8 +904,13 @@ fn length(a: &BitString) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use igs_iso9506_mms_codec::generated::tables::{
+        PARAMETER_SUPPORT_OPTIONS, SERVICE_SUPPORT_OPTIONS,
+    };
     use igs_iso9506_mms_codec::generated::types::{
-        InitiateRequestPDUInitRequestDetail, InitiateResponsePDUInitResponseDetail,
+        CancelRequestPDU, Identifier, InformationReport, InitiateRequestPDUInitRequestDetail,
+        InitiateResponsePDUInitResponseDetail, ObjectName, UnconfirmedPDU, UnconfirmedService,
+        VariableAccessSpecification,
     };
 
     /// A bit string with the bits at these positions set, 96 bits long.
@@ -959,6 +967,87 @@ mod tests {
         assert_eq!(peer.services.bytes, bits(&[1, 2]).bytes);
         assert_eq!(peer.parameters.bytes, bits(&[0]).bytes);
         assert!(response_within_request(&proposal, &answer));
+    }
+
+    fn position(name: &str) -> usize {
+        SERVICE_SUPPORT_OPTIONS
+            .iter()
+            .map(|named| (named.name, named.position as usize))
+            .chain(
+                PARAMETER_SUPPORT_OPTIONS
+                    .iter()
+                    .map(|named| (named.name, named.position as usize)),
+            )
+            .find(|(n, _)| *n == name)
+            .map(|(_, position)| position)
+            .unwrap()
+    }
+
+    /// This end serves everything; the peer serves the information report, with these parameter CBBs.
+    fn session(peer_parameters: &[usize]) -> Session {
+        let report = position("informationReport");
+        Session {
+            me: Negotiated {
+                parameters: bits(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+                services: bits(&[report]),
+                nesting_level: Some(6),
+            },
+            peer: Negotiated {
+                parameters: bits(peer_parameters),
+                services: bits(&[report]),
+                nesting_level: Some(6),
+            },
+        }
+    }
+
+    fn information_report() -> MMSpdu {
+        MMSpdu::UnconfirmedPDU(UnconfirmedPDU {
+            service: UnconfirmedService::InformationReport(InformationReport {
+                variable_access_specification: VariableAccessSpecification::VariableListName(
+                    ObjectName::VmdSpecific(Identifier("RPT".to_string())),
+                ),
+                list_of_access_result: Vec::new(),
+            }),
+            service_ext: None,
+        })
+    }
+
+    #[test]
+    fn an_incoming_report_is_checked_against_the_servers_cbbs() {
+        // The server sends the report: its CBBs apply, not ours. Without the variable list CBB that the
+        // server did not negotiate (G8), the report is refused; with it, accepted.
+        let pdu = information_report();
+        let without = session(&[]);
+        assert!(mms::validate_cbb(&pdu, serving_view(&without, &pdu, true)).is_err());
+        let with = session(&[position("vlis")]);
+        assert!(mms::validate_cbb(&pdu, serving_view(&with, &pdu, true)).is_ok());
+    }
+
+    #[test]
+    fn a_request_is_checked_against_the_end_that_serves_it() {
+        let session = session(&[]);
+        let request = MMSpdu::CancelRequestPDU(CancelRequestPDU(
+            igs_iso9506_mms_codec::generated::types::Unsigned32(1),
+        ));
+        // An incoming request is served by this end; an outgoing one by the peer.
+        assert!(std::ptr::eq(
+            serving_view(&session, &request, true),
+            &session.me
+        ));
+        assert!(std::ptr::eq(
+            serving_view(&session, &request, false),
+            &session.peer
+        ));
+        // A report sent by this end is served by this end; an incoming one by the peer.
+        let report = information_report();
+        assert!(std::ptr::eq(
+            serving_view(&session, &report, false),
+            &session.me
+        ));
+        assert!(std::ptr::eq(
+            serving_view(&session, &report, true),
+            &session.peer
+        ));
     }
 
     #[test]
