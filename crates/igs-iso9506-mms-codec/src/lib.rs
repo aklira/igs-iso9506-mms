@@ -44,3 +44,7 @@ pub mod acse;
 
 /// Common MMS types: the readings that their prose adds to the generated types.
 pub mod mms;
+
+/// Strategies for property tests of the codec.
+#[cfg(feature = "proptest")]
+pub mod strategy;

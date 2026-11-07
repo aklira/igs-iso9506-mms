@@ -20,6 +20,8 @@ use crate::ber::{self, Element, Writer};
 use crate::schema::{
     BitString, Member, ObjectIdentifier, Presence, RawBer, Tag, TagClass, Tagging,
 };
+#[cfg(feature = "proptest")]
+use proptest::strategy::Strategy as _;
 
 /// Number of generated types.
 pub const TYPE_COUNT: usize = 143;
@@ -307,6 +309,71 @@ impl asn::Codec for AAREApdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AAREApdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        (
+            (
+                proptest::option::of(crate::strategy::values::<AAREApduProtocolVersion>(depth)),
+                crate::strategy::values::<ApplicationContextName>(depth),
+                crate::strategy::values::<AssociateResult>(depth),
+                crate::strategy::values::<AssociateSourceDiagnostic>(depth),
+                proptest::option::of(crate::strategy::values::<APTitle>(depth)),
+                proptest::option::of(crate::strategy::values::<AEQualifier>(depth)),
+                proptest::option::of(crate::strategy::values::<APInvocationIdentifier>(depth)),
+                proptest::option::of(crate::strategy::values::<AEInvocationIdentifier>(depth)),
+            ),
+            (
+                proptest::option::of(crate::strategy::values::<ACSERequirements>(depth)),
+                proptest::option::of(crate::strategy::values::<MechanismName>(depth)),
+                proptest::option::of(crate::strategy::values::<AuthenticationValue>(depth)),
+                proptest::option::of(crate::strategy::values::<ApplicationContextNameList>(depth)),
+                proptest::option::of(crate::strategy::values::<ImplementationData>(depth)),
+                proptest::option::of(crate::strategy::values::<AssociationInformation>(depth)),
+            ),
+        )
+            .prop_map(
+                |(
+                    (
+                        protocol_version,
+                        application_context_name,
+                        result,
+                        result_source_diagnostic,
+                        responding_ap_title,
+                        responding_ae_qualifier,
+                        responding_ap_invocation_identifier,
+                        responding_ae_invocation_identifier,
+                    ),
+                    (
+                        responder_acse_requirements,
+                        mechanism_name,
+                        responding_authentication_value,
+                        application_context_name_list,
+                        implementation_information,
+                        user_information,
+                    ),
+                )| Self {
+                    protocol_version,
+                    application_context_name,
+                    result,
+                    result_source_diagnostic,
+                    responding_ap_title,
+                    responding_ae_qualifier,
+                    responding_ap_invocation_identifier,
+                    responding_ae_invocation_identifier,
+                    responder_acse_requirements,
+                    mechanism_name,
+                    responding_authentication_value,
+                    application_context_name_list,
+                    implementation_information,
+                    user_information,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `AAREApduProtocolVersion`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AAREApduProtocolVersion(pub BitString);
@@ -347,6 +414,16 @@ impl asn::Codec for AAREApduProtocolVersion {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AAREApduProtocolVersion {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::BitStr>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -715,6 +792,77 @@ impl asn::Codec for AARQApdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AARQApdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        (
+            (
+                proptest::option::of(crate::strategy::values::<AARQApduProtocolVersion>(depth)),
+                crate::strategy::values::<ApplicationContextName>(depth),
+                proptest::option::of(crate::strategy::values::<APTitle>(depth)),
+                proptest::option::of(crate::strategy::values::<AEQualifier>(depth)),
+                proptest::option::of(crate::strategy::values::<APInvocationIdentifier>(depth)),
+                proptest::option::of(crate::strategy::values::<AEInvocationIdentifier>(depth)),
+                proptest::option::of(crate::strategy::values::<APTitle>(depth)),
+                proptest::option::of(crate::strategy::values::<AEQualifier>(depth)),
+            ),
+            (
+                proptest::option::of(crate::strategy::values::<APInvocationIdentifier>(depth)),
+                proptest::option::of(crate::strategy::values::<AEInvocationIdentifier>(depth)),
+                proptest::option::of(crate::strategy::values::<ACSERequirements>(depth)),
+                proptest::option::of(crate::strategy::values::<MechanismName>(depth)),
+                proptest::option::of(crate::strategy::values::<AuthenticationValue>(depth)),
+                proptest::option::of(crate::strategy::values::<ApplicationContextNameList>(depth)),
+                proptest::option::of(crate::strategy::values::<ImplementationData>(depth)),
+                proptest::option::of(crate::strategy::values::<AssociationInformation>(depth)),
+            ),
+        )
+            .prop_map(
+                |(
+                    (
+                        protocol_version,
+                        application_context_name,
+                        called_ap_title,
+                        called_ae_qualifier,
+                        called_ap_invocation_identifier,
+                        called_ae_invocation_identifier,
+                        calling_ap_title,
+                        calling_ae_qualifier,
+                    ),
+                    (
+                        calling_ap_invocation_identifier,
+                        calling_ae_invocation_identifier,
+                        sender_acse_requirements,
+                        mechanism_name,
+                        calling_authentication_value,
+                        application_context_name_list,
+                        implementation_information,
+                        user_information,
+                    ),
+                )| Self {
+                    protocol_version,
+                    application_context_name,
+                    called_ap_title,
+                    called_ae_qualifier,
+                    called_ap_invocation_identifier,
+                    called_ae_invocation_identifier,
+                    calling_ap_title,
+                    calling_ae_qualifier,
+                    calling_ap_invocation_identifier,
+                    calling_ae_invocation_identifier,
+                    sender_acse_requirements,
+                    mechanism_name,
+                    calling_authentication_value,
+                    application_context_name_list,
+                    implementation_information,
+                    user_information,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `AARQApduProtocolVersion`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AARQApduProtocolVersion(pub BitString);
@@ -755,6 +903,16 @@ impl asn::Codec for AARQApduProtocolVersion {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AARQApduProtocolVersion {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::BitStr>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -857,6 +1015,26 @@ impl asn::Codec for ABRTApdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ABRTApdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<ABRTSource>(depth),
+            proptest::option::of(crate::strategy::values::<ABRTDiagnostic>(depth)),
+            proptest::option::of(crate::strategy::values::<AssociationInformation>(depth)),
+        ),)
+            .prop_map(
+                |((abort_source, abort_diagnostic, user_information),)| Self {
+                    abort_source,
+                    abort_diagnostic,
+                    user_information,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `ABRT-diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ABRTDiagnostic(pub i64);
@@ -910,6 +1088,16 @@ impl asn::Codec for ABRTDiagnostic {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ABRTDiagnostic {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Enumerated>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `ABRT-source`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ABRTSource(pub i64);
@@ -954,6 +1142,14 @@ impl asn::Codec for ABRTSource {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ABRTSource {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -1067,6 +1263,32 @@ impl asn::Codec for ACSEApdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ACSEApdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<AARQApdu>(depth)
+                .prop_map(Self::Aarq)
+                .boxed(),
+            crate::strategy::values::<AAREApdu>(depth)
+                .prop_map(Self::Aare)
+                .boxed(),
+            crate::strategy::values::<RLRQApdu>(depth)
+                .prop_map(Self::Rlrq)
+                .boxed(),
+            crate::strategy::values::<RLREApdu>(depth)
+                .prop_map(Self::Rlre)
+                .boxed(),
+            crate::strategy::values::<ABRTApdu>(depth)
+                .prop_map(Self::Abrt)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `ACSE-requirements`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ACSERequirements(pub BitString);
@@ -1112,6 +1334,16 @@ impl asn::Codec for ACSERequirements {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ACSERequirements {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::BitStr>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `AE-invocation-identifier`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AEInvocationIdentifier(pub i64);
@@ -1149,6 +1381,16 @@ impl asn::Codec for AEInvocationIdentifier {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AEInvocationIdentifier {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Integer>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1229,6 +1471,23 @@ impl asn::Codec for AEQualifier {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AEQualifier {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<AEQualifierForm1>(depth)
+                .prop_map(Self::AeQualifierForm1)
+                .boxed(),
+            crate::strategy::values::<AEQualifierForm2>(depth)
+                .prop_map(Self::AeQualifierForm2)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AE-qualifier-form1`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AEQualifierForm1(pub RawBer);
@@ -1268,6 +1527,16 @@ impl asn::Codec for AEQualifierForm1 {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AEQualifierForm1 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<OpaqueRelativeDistinguishedName>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1311,6 +1580,16 @@ impl asn::Codec for AEQualifierForm2 {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AEQualifierForm2 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Integer>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `AP-invocation-identifier`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct APInvocationIdentifier(pub i64);
@@ -1348,6 +1627,16 @@ impl asn::Codec for APInvocationIdentifier {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for APInvocationIdentifier {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Integer>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1424,6 +1713,23 @@ impl asn::Codec for APTitle {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for APTitle {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<APTitleForm1>(depth)
+                .prop_map(Self::ApTitleForm1)
+                .boxed(),
+            crate::strategy::values::<APTitleForm2>(depth)
+                .prop_map(Self::ApTitleForm2)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AP-title-form1`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct APTitleForm1(pub RawBer);
@@ -1464,6 +1770,16 @@ impl asn::Codec for APTitleForm1 {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for APTitleForm1 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<OpaqueName>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `AP-title-form2`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct APTitleForm2(pub ObjectIdentifier);
@@ -1501,6 +1817,16 @@ impl asn::Codec for APTitleForm2 {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for APTitleForm2 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Oid>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1588,6 +1914,23 @@ impl asn::Codec for AccessResult {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AccessResult {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<DataAccessError>(depth)
+                .prop_map(Self::Failure)
+                .boxed(),
+            crate::strategy::values::<Data>(depth)
+                .prop_map(Self::Success)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AdditionalCBBOptions`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdditionalCBBOptions(pub BitString);
@@ -1634,6 +1977,16 @@ impl asn::Codec for AdditionalCBBOptions {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AdditionalCBBOptions {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::BitStr>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1723,6 +2076,16 @@ impl asn::Codec for AdditionalSupportOptions {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AdditionalSupportOptions {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::BitStr>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1840,6 +2203,26 @@ impl asn::Codec for Address {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Address {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<Unsigned32>(depth)
+                .prop_map(Self::NumericAddress)
+                .boxed(),
+            crate::strategy::values::<MMSString>(depth)
+                .prop_map(Self::SymbolicAddress)
+                .boxed(),
+            crate::strategy::values::<asn::Octets>(depth)
+                .prop_map(Self::UnconstrainedAddress)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AlternateAccess`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlternateAccess(pub Vec<AlternateAccessItemItem>);
@@ -1879,6 +2262,16 @@ impl asn::Codec for AlternateAccess {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccess {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::cyclic_list::<AlternateAccessItemItem>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -1971,6 +2364,22 @@ impl asn::Codec for AlternateAccessItemItem {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessItemItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        let arms = vec![
+            crate::strategy::values::<AlternateAccessSelection>(depth.saturating_sub(1))
+                .prop_map(Self::Unnamed)
+                .boxed(),
+            crate::strategy::values::<AlternateAccessItemItemNamed>(depth.saturating_sub(1))
+                .prop_map(Self::Named)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AlternateAccessItemItemNamed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlternateAccessItemItemNamed {
@@ -2045,6 +2454,22 @@ impl asn::Codec for AlternateAccessItemItemNamed {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessItemItemNamed {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Identifier>(depth),
+            crate::strategy::values::<AlternateAccessSelection>(depth.saturating_sub(1)),
+        ),)
+            .prop_map(|((component_name, access),)| Self {
+                component_name,
+                access,
+            })
+            .boxed()
     }
 }
 
@@ -2139,6 +2564,29 @@ impl asn::Codec for AlternateAccessSelection {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessSelection {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<AlternateAccessSelectionSelectAccess>(depth)
+                .prop_map(Self::SelectAccess)
+                .boxed(),
+        ];
+        if depth > 0 {
+            arms.extend([
+                crate::strategy::values::<AlternateAccessSelectionSelectAlternateAccess>(
+                    depth.saturating_sub(1),
+                )
+                .prop_map(Self::SelectAlternateAccess)
+                .boxed(),
+            ]);
+        }
+        proptest::strategy::Union::new(arms).boxed()
     }
 }
 
@@ -2280,6 +2728,27 @@ impl asn::Codec for AlternateAccessSelectionSelectAccess {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessSelectionSelectAccess {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<Identifier>(depth)
+                .prop_map(Self::Component)
+                .boxed(),
+            crate::strategy::values::<Unsigned32>(depth)
+                .prop_map(Self::Index)
+                .boxed(),
+            crate::strategy::values::<AlternateAccessSelectionSelectAccessIndexRange>(depth)
+                .prop_map(Self::IndexRange)
+                .boxed(),
+            proptest::strategy::Just(Self::AllElements).boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AlternateAccessSelectionSelectAccessIndexRange`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlternateAccessSelectionSelectAccessIndexRange {
@@ -2365,6 +2834,22 @@ impl asn::Codec for AlternateAccessSelectionSelectAccessIndexRange {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessSelectionSelectAccessIndexRange {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            crate::strategy::values::<Unsigned32>(depth),
+        ),)
+            .prop_map(|((low_index, number_of_elements),)| Self {
+                low_index,
+                number_of_elements,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `AlternateAccessSelectionSelectAlternateAccess`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlternateAccessSelectionSelectAlternateAccess {
@@ -2440,6 +2925,24 @@ impl asn::Codec for AlternateAccessSelectionSelectAlternateAccess {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessSelectionSelectAlternateAccess {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<AlternateAccessSelectionSelectAlternateAccessAccessSelection>(
+                depth,
+            ),
+            crate::strategy::values::<AlternateAccess>(depth.saturating_sub(1)),
+        ),)
+            .prop_map(|((access_selection, alternate_access),)| Self {
+                access_selection,
+                alternate_access,
+            })
+            .boxed()
     }
 }
 
@@ -2586,6 +3089,29 @@ impl asn::Codec for AlternateAccessSelectionSelectAlternateAccessAccessSelection
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AlternateAccessSelectionSelectAlternateAccessAccessSelection {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<Identifier>(depth)
+                .prop_map(Self::Component)
+                .boxed(),
+            crate::strategy::values::<Unsigned32>(depth)
+                .prop_map(Self::Index)
+                .boxed(),
+            crate::strategy::values::<
+                AlternateAccessSelectionSelectAlternateAccessAccessSelectionIndexRange,
+            >(depth)
+            .prop_map(Self::IndexRange)
+            .boxed(),
+            proptest::strategy::Just(Self::AllElements).boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AlternateAccessSelectionSelectAlternateAccessAccessSelectionIndexRange`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlternateAccessSelectionSelectAlternateAccessAccessSelectionIndexRange {
@@ -2675,6 +3201,24 @@ impl asn::Codec for AlternateAccessSelectionSelectAlternateAccessAccessSelection
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values
+    for AlternateAccessSelectionSelectAlternateAccessAccessSelectionIndexRange
+{
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            crate::strategy::values::<Unsigned32>(depth),
+        ),)
+            .prop_map(|((low_index, number_of_elements),)| Self {
+                low_index,
+                number_of_elements,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Application-context-name`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationContextName(pub ObjectIdentifier);
@@ -2712,6 +3256,16 @@ impl asn::Codec for ApplicationContextName {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ApplicationContextName {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Oid>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -2754,6 +3308,16 @@ impl asn::Codec for ApplicationContextNameList {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ApplicationContextNameList {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::ListOf<ApplicationContextName>>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -2803,6 +3367,14 @@ impl asn::Codec for AssociateResult {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AssociateResult {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -2911,6 +3483,23 @@ impl asn::Codec for AssociateSourceDiagnostic {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AssociateSourceDiagnostic {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<AssociateSourceDiagnosticAcseServiceUser>(depth)
+                .prop_map(Self::AcseServiceUser)
+                .boxed(),
+            crate::strategy::values::<AssociateSourceDiagnosticAcseServiceProvider>(depth)
+                .prop_map(Self::AcseServiceProvider)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AssociateSourceDiagnosticAcseServiceProvider`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssociateSourceDiagnosticAcseServiceProvider(pub i64);
@@ -2957,6 +3546,14 @@ impl asn::Codec for AssociateSourceDiagnosticAcseServiceProvider {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AssociateSourceDiagnosticAcseServiceProvider {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -3033,6 +3630,14 @@ impl asn::Codec for AssociateSourceDiagnosticAcseServiceUser {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AssociateSourceDiagnosticAcseServiceUser {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `Association-information`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssociationInformation(pub Vec<RawBer>);
@@ -3073,6 +3678,16 @@ impl asn::Codec for AssociationInformation {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AssociationInformation {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::ListOf<asn::External>>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -3219,6 +3834,29 @@ impl asn::Codec for AuthenticationValue {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AuthenticationValue {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<asn::Graphic>(depth)
+                .prop_map(Self::Charstring)
+                .boxed(),
+            crate::strategy::values::<asn::BitStr>(depth)
+                .prop_map(Self::Bitstring)
+                .boxed(),
+            crate::strategy::values::<asn::External>(depth)
+                .prop_map(Self::External)
+                .boxed(),
+            crate::strategy::values::<AuthenticationValueOther>(depth)
+                .prop_map(Self::Other)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `AuthenticationValueOther`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthenticationValueOther {
@@ -3286,6 +3924,22 @@ impl asn::Codec for AuthenticationValueOther {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for AuthenticationValueOther {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::Open>(depth),
+            crate::strategy::values::<asn::Open>(depth),
+        ),)
+            .prop_map(|((other_mechanism_name, other_mechanism_value),)| Self {
+                other_mechanism_name,
+                other_mechanism_value,
+            })
+            .boxed()
     }
 }
 
@@ -3373,6 +4027,22 @@ impl asn::Codec for CancelErrorPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for CancelErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            crate::strategy::values::<ServiceError>(depth),
+        ),)
+            .prop_map(|((original_invoke_id, service_error),)| Self {
+                original_invoke_id,
+                service_error,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Cancel-RequestPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CancelRequestPDU(pub Unsigned32);
@@ -3410,6 +4080,16 @@ impl asn::Codec for CancelRequestPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for CancelRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<Unsigned32>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -3453,6 +4133,16 @@ impl asn::Codec for CancelResponsePDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for CancelResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<Unsigned32>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Conclude-ErrorPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConcludeErrorPDU(pub ServiceError);
@@ -3490,6 +4180,16 @@ impl asn::Codec for ConcludeErrorPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConcludeErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<ServiceError>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -3533,6 +4233,16 @@ impl asn::Codec for ConcludeRequestPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConcludeRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Null>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Conclude-ResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConcludeResponsePDU(pub ());
@@ -3570,6 +4280,16 @@ impl asn::Codec for ConcludeResponsePDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConcludeResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Null>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -3672,6 +4392,24 @@ impl asn::Codec for ConfirmedErrorPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConfirmedErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            proptest::option::of(crate::strategy::values::<Unsigned32>(depth)),
+            crate::strategy::values::<ServiceError>(depth),
+        ),)
+            .prop_map(|((invoke_id, modifier_position, service_error),)| Self {
+                invoke_id,
+                modifier_position,
+                service_error,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Confirmed-RequestPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfirmedRequestPDU {
@@ -3770,6 +4508,30 @@ impl asn::Codec for ConfirmedRequestPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConfirmedRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            proptest::option::of(crate::strategy::values::<asn::ListOf<OpaqueModifier>>(
+                depth,
+            )),
+            crate::strategy::values::<ConfirmedServiceRequest>(depth),
+            proptest::option::of(crate::strategy::values::<OpaqueRequestDetail>(depth)),
+        ),)
+            .prop_map(
+                |((invoke_id, list_of_modifiers, service, service_ext),)| Self {
+                    invoke_id,
+                    list_of_modifiers,
+                    service,
+                    service_ext,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Confirmed-ResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfirmedResponsePDU {
@@ -3855,6 +4617,24 @@ impl asn::Codec for ConfirmedResponsePDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConfirmedResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            crate::strategy::values::<ConfirmedServiceResponse>(depth),
+            proptest::option::of(crate::strategy::values::<OpaqueResponseDetail>(depth)),
+        ),)
+            .prop_map(|((invoke_id, service, service_ext),)| Self {
+                invoke_id,
+                service,
+                service_ext,
+            })
+            .boxed()
     }
 }
 
@@ -4137,6 +4917,44 @@ impl asn::Codec for ConfirmedServiceRequest {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConfirmedServiceRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<GetNameListRequest>(depth)
+                .prop_map(Self::GetNameList)
+                .boxed(),
+            crate::strategy::values::<IdentifyRequest>(depth)
+                .prop_map(Self::Identify)
+                .boxed(),
+            crate::strategy::values::<ReadRequest>(depth)
+                .prop_map(Self::Read)
+                .boxed(),
+            crate::strategy::values::<WriteRequest>(depth)
+                .prop_map(Self::Write)
+                .boxed(),
+            crate::strategy::values::<GetVariableAccessAttributesRequest>(depth)
+                .prop_map(Self::GetVariableAccessAttributes)
+                .boxed(),
+            crate::strategy::values::<DefineNamedVariableListRequest>(depth)
+                .prop_map(Self::DefineNamedVariableList)
+                .boxed(),
+            crate::strategy::values::<GetNamedVariableListAttributesRequest>(depth)
+                .prop_map(Self::GetNamedVariableListAttributes)
+                .boxed(),
+            crate::strategy::values::<DeleteNamedVariableListRequest>(depth)
+                .prop_map(Self::DeleteNamedVariableList)
+                .boxed(),
+            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13])
+                .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `ConfirmedServiceResponse`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfirmedServiceResponse {
@@ -4415,6 +5233,44 @@ impl asn::Codec for ConfirmedServiceResponse {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ConfirmedServiceResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<GetNameListResponse>(depth)
+                .prop_map(Self::GetNameList)
+                .boxed(),
+            crate::strategy::values::<IdentifyResponse>(depth)
+                .prop_map(Self::Identify)
+                .boxed(),
+            crate::strategy::values::<ReadResponse>(depth)
+                .prop_map(Self::Read)
+                .boxed(),
+            crate::strategy::values::<WriteResponse>(depth)
+                .prop_map(Self::Write)
+                .boxed(),
+            crate::strategy::values::<GetVariableAccessAttributesResponse>(depth)
+                .prop_map(Self::GetVariableAccessAttributes)
+                .boxed(),
+            crate::strategy::values::<DefineNamedVariableListResponse>(depth)
+                .prop_map(Self::DefineNamedVariableList)
+                .boxed(),
+            crate::strategy::values::<GetNamedVariableListAttributesResponse>(depth)
+                .prop_map(Self::GetNamedVariableListAttributes)
+                .boxed(),
+            crate::strategy::values::<DeleteNamedVariableListResponse>(depth)
+                .prop_map(Self::DeleteNamedVariableList)
+                .boxed(),
+            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13])
+                .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
     }
 }
 
@@ -4849,6 +5705,69 @@ impl asn::Codec for Data {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Data {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<asn::Boolean>(depth)
+                .prop_map(Self::Boolean)
+                .boxed(),
+            crate::strategy::values::<asn::BitStr>(depth)
+                .prop_map(Self::BitString)
+                .boxed(),
+            crate::strategy::values::<asn::Integer128>(depth)
+                .prop_map(Self::Integer)
+                .boxed(),
+            crate::strategy::values::<asn::Unsigned128>(depth)
+                .prop_map(Self::Unsigned)
+                .boxed(),
+            crate::strategy::values::<FloatingPoint>(depth)
+                .prop_map(Self::FloatingPoint)
+                .boxed(),
+            crate::strategy::values::<asn::Octets>(depth)
+                .prop_map(Self::OctetString)
+                .boxed(),
+            crate::strategy::values::<asn::Visible>(depth)
+                .prop_map(Self::VisibleString)
+                .boxed(),
+            crate::strategy::values::<asn::GeneralizedTime>(depth)
+                .prop_map(Self::GeneralizedTime)
+                .boxed(),
+            crate::strategy::values::<TimeOfDay>(depth)
+                .prop_map(Self::BinaryTime)
+                .boxed(),
+            crate::strategy::values::<asn::Unsigned128>(depth)
+                .prop_map(Self::Bcd)
+                .boxed(),
+            crate::strategy::values::<asn::BitStr>(depth)
+                .prop_map(Self::BooleanArray)
+                .boxed(),
+            crate::strategy::values::<asn::Oid>(depth)
+                .prop_map(Self::ObjId)
+                .boxed(),
+            crate::strategy::values::<MMSString>(depth)
+                .prop_map(Self::MMSString)
+                .boxed(),
+            crate::strategy::unsupported(17, &[1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16])
+                .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+                .boxed(),
+        ];
+        if depth > 0 {
+            arms.extend([
+                crate::strategy::cyclic_list::<Data>(depth)
+                    .prop_map(Self::Array)
+                    .boxed(),
+                crate::strategy::cyclic_list::<Data>(depth)
+                    .prop_map(Self::Structure)
+                    .boxed(),
+            ]);
+        }
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `DataAccessError`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataAccessError(pub i64);
@@ -4930,6 +5849,14 @@ impl asn::Codec for DataAccessError {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DataAccessError {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `DefineNamedVariableList-Request`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefineNamedVariableListRequest {
@@ -5005,6 +5932,14 @@ impl asn::Codec for DefineNamedVariableListRequest {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DefineNamedVariableListRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((crate::strategy::values::<ObjectName>(depth), crate::strategy::values::<asn::ListOf<DefineNamedVariableListRequestListOfVariableItem>>(depth),),).prop_map(|((variable_list_name, list_of_variable,),)| Self { variable_list_name, list_of_variable }).boxed()
     }
 }
 
@@ -5085,6 +6020,22 @@ impl asn::Codec for DefineNamedVariableListRequestListOfVariableItem {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DefineNamedVariableListRequestListOfVariableItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<VariableSpecification>(depth),
+            proptest::option::of(crate::strategy::values::<AlternateAccess>(depth)),
+        ),)
+            .prop_map(|((variable_specification, alternate_access),)| Self {
+                variable_specification,
+                alternate_access,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `DefineNamedVariableList-Response`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefineNamedVariableListResponse(pub ());
@@ -5122,6 +6073,16 @@ impl asn::Codec for DefineNamedVariableListResponse {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DefineNamedVariableListResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Null>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -5224,6 +6185,28 @@ impl asn::Codec for DeleteNamedVariableListRequest {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DeleteNamedVariableListRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<
+                DeleteNamedVariableListRequestScopeOfDelete,
+            >(depth)),
+            proptest::option::of(crate::strategy::values::<asn::ListOf<ObjectName>>(depth)),
+            proptest::option::of(crate::strategy::values::<Identifier>(depth)),
+        ),)
+            .prop_map(
+                |((scope_of_delete, list_of_variable_list_name, domain_name),)| Self {
+                    scope_of_delete,
+                    list_of_variable_list_name,
+                    domain_name,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `DeleteNamedVariableListRequestScopeOfDelete`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteNamedVariableListRequestScopeOfDelete(pub i64);
@@ -5290,6 +6273,14 @@ impl asn::Codec for DeleteNamedVariableListRequestScopeOfDelete {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DeleteNamedVariableListRequestScopeOfDelete {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -5377,6 +6368,22 @@ impl asn::Codec for DeleteNamedVariableListResponse {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DeleteNamedVariableListResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            crate::strategy::values::<Unsigned32>(depth),
+        ),)
+            .prop_map(|((number_matched, number_deleted),)| Self {
+                number_matched,
+                number_deleted,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `FloatingPoint`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FloatingPoint(pub Vec<u8>);
@@ -5428,6 +6435,14 @@ impl asn::Codec for FloatingPoint {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FloatingPoint {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::floating_point().prop_map(Self).boxed()
     }
 }
 
@@ -5527,6 +6542,24 @@ impl asn::Codec for GetNameListRequest {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetNameListRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<ObjectClass>(depth),
+            crate::strategy::values::<GetNameListRequestObjectScope>(depth),
+            proptest::option::of(crate::strategy::values::<Identifier>(depth)),
+        ),)
+            .prop_map(|((object_class, object_scope, continue_after),)| Self {
+                object_class,
+                object_scope,
+                continue_after,
+            })
+            .boxed()
     }
 }
 
@@ -5639,6 +6672,22 @@ impl asn::Codec for GetNameListRequestObjectScope {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetNameListRequestObjectScope {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            proptest::strategy::Just(Self::VmdSpecific).boxed(),
+            crate::strategy::values::<Identifier>(depth)
+                .prop_map(Self::DomainSpecific)
+                .boxed(),
+            proptest::strategy::Just(Self::AaSpecific).boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `GetNameList-Response`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetNameListResponse {
@@ -5721,6 +6770,22 @@ impl asn::Codec for GetNameListResponse {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetNameListResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::ListOf<Identifier>>(depth),
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+        ),)
+            .prop_map(|((list_of_identifier, more_follows),)| Self {
+                list_of_identifier,
+                more_follows,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `GetNamedVariableListAttributes-Request`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetNamedVariableListAttributesRequest(pub ObjectName);
@@ -5758,6 +6823,16 @@ impl asn::Codec for GetNamedVariableListAttributesRequest {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetNamedVariableListAttributesRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<ObjectName>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -5861,6 +6936,28 @@ impl asn::Codec for GetNamedVariableListAttributesResponse {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetNamedVariableListAttributesResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::Boolean>(depth),
+            crate::strategy::values::<
+                asn::ListOf<GetNamedVariableListAttributesResponseListOfVariableItem>,
+            >(depth),
+            proptest::option::of(crate::strategy::values::<Identifier>(depth)),
+        ),)
+            .prop_map(
+                |((mms_deletable, list_of_variable, access_control_list),)| Self {
+                    mms_deletable,
+                    list_of_variable,
+                    access_control_list,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `GetNamedVariableListAttributesResponseListOfVariableItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetNamedVariableListAttributesResponseListOfVariableItem {
@@ -5938,6 +7035,22 @@ impl asn::Codec for GetNamedVariableListAttributesResponseListOfVariableItem {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetNamedVariableListAttributesResponseListOfVariableItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<VariableSpecification>(depth),
+            proptest::option::of(crate::strategy::values::<AlternateAccess>(depth)),
+        ),)
+            .prop_map(|((variable_specification, alternate_access),)| Self {
+                variable_specification,
+                alternate_access,
+            })
+            .boxed()
     }
 }
 
@@ -6026,6 +7139,23 @@ impl asn::Codec for GetVariableAccessAttributesRequest {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetVariableAccessAttributesRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<ObjectName>(depth)
+                .prop_map(Self::Name)
+                .boxed(),
+            crate::strategy::values::<Address>(depth)
+                .prop_map(Self::Address)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
     }
 }
 
@@ -6158,6 +7288,32 @@ impl asn::Codec for GetVariableAccessAttributesResponse {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for GetVariableAccessAttributesResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::Boolean>(depth),
+            proptest::option::of(crate::strategy::values::<Address>(depth)),
+            crate::strategy::values::<TypeDescription>(depth),
+            proptest::option::of(crate::strategy::values::<Identifier>(depth)),
+            proptest::option::of(crate::strategy::values::<asn::Visible>(depth)),
+        ),)
+            .prop_map(
+                |((mms_deletable, address, type_description, access_control_list, meaning),)| {
+                    Self {
+                        mms_deletable,
+                        address,
+                        type_description,
+                        access_control_list,
+                        meaning,
+                    }
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Identifier`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identifier(pub String);
@@ -6216,6 +7372,14 @@ impl asn::Codec for Identifier {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Identifier {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::identifier().prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `Identify-Request`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdentifyRequest(pub ());
@@ -6253,6 +7417,16 @@ impl asn::Codec for IdentifyRequest {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for IdentifyRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Null>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -6375,6 +7549,28 @@ impl asn::Codec for IdentifyResponse {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for IdentifyResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<MMSString>(depth),
+            crate::strategy::values::<MMSString>(depth),
+            crate::strategy::values::<MMSString>(depth),
+            proptest::option::of(crate::strategy::values::<asn::ListOf<asn::Oid>>(depth)),
+        ),)
+            .prop_map(
+                |((vendor_name, model_name, revision, list_of_abstract_syntaxes),)| Self {
+                    vendor_name,
+                    model_name,
+                    revision,
+                    list_of_abstract_syntaxes,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Implementation-data`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImplementationData(pub String);
@@ -6412,6 +7608,16 @@ impl asn::Codec for ImplementationData {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ImplementationData {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Graphic>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -6497,6 +7703,24 @@ impl asn::Codec for InformationReport {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for InformationReport {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<VariableAccessSpecification>(depth),
+            crate::strategy::values::<asn::ListOf<AccessResult>>(depth),
+        ),)
+            .prop_map(
+                |((variable_access_specification, list_of_access_result),)| Self {
+                    variable_access_specification,
+                    list_of_access_result,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Initiate-ErrorPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitiateErrorPDU(pub ServiceError);
@@ -6534,6 +7758,16 @@ impl asn::Codec for InitiateErrorPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for InitiateErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<ServiceError>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -6686,6 +7920,36 @@ impl asn::Codec for InitiateRequestPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for InitiateRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<Integer32>(depth)),
+            crate::strategy::values::<Integer16>(depth),
+            crate::strategy::values::<Integer16>(depth),
+            proptest::option::of(crate::strategy::values::<Integer8>(depth)),
+            crate::strategy::values::<InitiateRequestPDUInitRequestDetail>(depth),
+        ),)
+            .prop_map(
+                |((
+                    local_detail_calling,
+                    proposed_max_serv_outstanding_calling,
+                    proposed_max_serv_outstanding_called,
+                    proposed_data_structure_nesting_level,
+                    init_request_detail,
+                ),)| Self {
+                    local_detail_calling,
+                    proposed_max_serv_outstanding_calling,
+                    proposed_max_serv_outstanding_called,
+                    proposed_data_structure_nesting_level,
+                    init_request_detail,
+                },
+            )
+            .boxed()
     }
 }
 
@@ -6861,6 +8125,39 @@ impl asn::Codec for InitiateRequestPDUInitRequestDetail {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for InitiateRequestPDUInitRequestDetail {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Integer16>(depth),
+            crate::strategy::values::<ParameterSupportOptions>(depth),
+            crate::strategy::values::<ServiceSupportOptions>(depth),
+            proptest::option::of(crate::strategy::values::<AdditionalSupportOptions>(depth)),
+            proptest::option::of(crate::strategy::values::<AdditionalCBBOptions>(depth)),
+            proptest::option::of(crate::strategy::values::<asn::Visible>(depth)),
+        ),)
+            .prop_map(
+                |((
+                    proposed_version_number,
+                    proposed_parameter_cbb,
+                    services_supported_calling,
+                    additional_supported_calling,
+                    additional_cbb_supported_calling,
+                    privilege_class_identity_calling,
+                ),)| Self {
+                    proposed_version_number,
+                    proposed_parameter_cbb,
+                    services_supported_calling,
+                    additional_supported_calling,
+                    additional_cbb_supported_calling,
+                    privilege_class_identity_calling,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Initiate-ResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitiateResponsePDU {
@@ -7010,6 +8307,36 @@ impl asn::Codec for InitiateResponsePDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for InitiateResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<Integer32>(depth)),
+            crate::strategy::values::<Integer16>(depth),
+            crate::strategy::values::<Integer16>(depth),
+            proptest::option::of(crate::strategy::values::<Integer8>(depth)),
+            crate::strategy::values::<InitiateResponsePDUInitResponseDetail>(depth),
+        ),)
+            .prop_map(
+                |((
+                    local_detail_called,
+                    negotiated_max_serv_outstanding_calling,
+                    negotiated_max_serv_outstanding_called,
+                    negotiated_data_structure_nesting_level,
+                    init_response_detail,
+                ),)| Self {
+                    local_detail_called,
+                    negotiated_max_serv_outstanding_calling,
+                    negotiated_max_serv_outstanding_called,
+                    negotiated_data_structure_nesting_level,
+                    init_response_detail,
+                },
+            )
+            .boxed()
     }
 }
 
@@ -7185,6 +8512,39 @@ impl asn::Codec for InitiateResponsePDUInitResponseDetail {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for InitiateResponsePDUInitResponseDetail {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Integer16>(depth),
+            crate::strategy::values::<ParameterSupportOptions>(depth),
+            crate::strategy::values::<ServiceSupportOptions>(depth),
+            proptest::option::of(crate::strategy::values::<AdditionalSupportOptions>(depth)),
+            proptest::option::of(crate::strategy::values::<AdditionalCBBOptions>(depth)),
+            proptest::option::of(crate::strategy::values::<asn::Visible>(depth)),
+        ),)
+            .prop_map(
+                |((
+                    negotiated_version_number,
+                    negotiated_parameter_cbb,
+                    services_supported_called,
+                    additional_supported_called,
+                    additional_cbb_supported_called,
+                    privilege_class_identity_called,
+                ),)| Self {
+                    negotiated_version_number,
+                    negotiated_parameter_cbb,
+                    services_supported_called,
+                    additional_supported_called,
+                    additional_cbb_supported_called,
+                    privilege_class_identity_called,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Integer16`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Integer16(pub i64);
@@ -7239,6 +8599,14 @@ impl asn::Codec for Integer16 {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Integer16 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -7299,6 +8667,14 @@ impl asn::Codec for Integer32 {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Integer32 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `Integer8`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Integer8(pub i64);
@@ -7356,6 +8732,14 @@ impl asn::Codec for Integer8 {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Integer8 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `MMSString`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MMSString(pub String);
@@ -7393,6 +8777,16 @@ impl asn::Codec for MMSString {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for MMSString {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Visible>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -7794,6 +9188,59 @@ impl asn::Codec for MMSpdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for MMSpdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<ConfirmedRequestPDU>(depth)
+                .prop_map(Self::ConfirmedRequestPDU)
+                .boxed(),
+            crate::strategy::values::<ConfirmedResponsePDU>(depth)
+                .prop_map(Self::ConfirmedResponsePDU)
+                .boxed(),
+            crate::strategy::values::<ConfirmedErrorPDU>(depth)
+                .prop_map(Self::ConfirmedErrorPDU)
+                .boxed(),
+            crate::strategy::values::<UnconfirmedPDU>(depth)
+                .prop_map(Self::UnconfirmedPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDU>(depth)
+                .prop_map(Self::RejectPDU)
+                .boxed(),
+            crate::strategy::values::<CancelRequestPDU>(depth)
+                .prop_map(Self::CancelRequestPDU)
+                .boxed(),
+            crate::strategy::values::<CancelResponsePDU>(depth)
+                .prop_map(Self::CancelResponsePDU)
+                .boxed(),
+            crate::strategy::values::<CancelErrorPDU>(depth)
+                .prop_map(Self::CancelErrorPDU)
+                .boxed(),
+            crate::strategy::values::<InitiateRequestPDU>(depth)
+                .prop_map(Self::InitiateRequestPDU)
+                .boxed(),
+            crate::strategy::values::<InitiateResponsePDU>(depth)
+                .prop_map(Self::InitiateResponsePDU)
+                .boxed(),
+            crate::strategy::values::<InitiateErrorPDU>(depth)
+                .prop_map(Self::InitiateErrorPDU)
+                .boxed(),
+            crate::strategy::values::<ConcludeRequestPDU>(depth)
+                .prop_map(Self::ConcludeRequestPDU)
+                .boxed(),
+            crate::strategy::values::<ConcludeResponsePDU>(depth)
+                .prop_map(Self::ConcludeResponsePDU)
+                .boxed(),
+            crate::strategy::values::<ConcludeErrorPDU>(depth)
+                .prop_map(Self::ConcludeErrorPDU)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `Mechanism-name`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MechanismName(pub ObjectIdentifier);
@@ -7831,6 +9278,16 @@ impl asn::Codec for MechanismName {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for MechanismName {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Oid>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -7937,6 +9394,23 @@ impl asn::Codec for ObjectClass {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ObjectClass {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<ObjectClassBasicObjectClass>(depth)
+                .prop_map(Self::BasicObjectClass)
+                .boxed(),
+            crate::strategy::values::<ObjectClassCsObjectClass>(depth)
+                .prop_map(Self::CsObjectClass)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `ObjectClassBasicObjectClass`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectClassBasicObjectClass(pub i64);
@@ -8022,6 +9496,14 @@ impl asn::Codec for ObjectClassBasicObjectClass {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ObjectClassBasicObjectClass {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ObjectClassCsObjectClass`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectClassCsObjectClass(pub i64);
@@ -8080,6 +9562,14 @@ impl asn::Codec for ObjectClassCsObjectClass {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ObjectClassCsObjectClass {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -8201,6 +9691,26 @@ impl asn::Codec for ObjectName {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ObjectName {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<Identifier>(depth)
+                .prop_map(Self::VmdSpecific)
+                .boxed(),
+            crate::strategy::values::<ObjectNameDomainSpecific>(depth)
+                .prop_map(Self::DomainSpecific)
+                .boxed(),
+            crate::strategy::values::<Identifier>(depth)
+                .prop_map(Self::AaSpecific)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `ObjectNameDomainSpecific`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectNameDomainSpecific {
@@ -8265,6 +9775,19 @@ impl asn::Codec for ObjectNameDomainSpecific {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ObjectNameDomainSpecific {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Identifier>(depth),
+            crate::strategy::values::<Identifier>(depth),
+        ),)
+            .prop_map(|((domain_id, item_id),)| Self { domain_id, item_id })
+            .boxed()
     }
 }
 
@@ -8340,6 +9863,16 @@ impl asn::Codec for ParameterSupportOptions {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ParameterSupportOptions {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::BitStr>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -8428,6 +9961,22 @@ impl asn::Codec for RLREApdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RLREApdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<ReleaseResponseReason>(depth)),
+            proptest::option::of(crate::strategy::values::<AssociationInformation>(depth)),
+        ),)
+            .prop_map(|((reason, user_information),)| Self {
+                reason,
+                user_information,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `RLRQ-apdu`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RLRQApdu {
@@ -8513,6 +10062,22 @@ impl asn::Codec for RLRQApdu {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RLRQApdu {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<ReleaseRequestReason>(depth)),
+            proptest::option::of(crate::strategy::values::<AssociationInformation>(depth)),
+        ),)
+            .prop_map(|((reason, user_information),)| Self {
+                reason,
+                user_information,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Read-Request`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadRequest {
@@ -8592,6 +10157,24 @@ impl asn::Codec for ReadRequest {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+            crate::strategy::values::<VariableAccessSpecification>(depth),
+        ),)
+            .prop_map(
+                |((specification_with_result, variable_access_specification),)| Self {
+                    specification_with_result,
+                    variable_access_specification,
+                },
+            )
+            .boxed()
     }
 }
 
@@ -8678,6 +10261,26 @@ impl asn::Codec for ReadResponse {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<VariableAccessSpecification>(
+                depth,
+            )),
+            crate::strategy::values::<asn::ListOf<AccessResult>>(depth),
+        ),)
+            .prop_map(
+                |((variable_access_specification, list_of_access_result),)| Self {
+                    variable_access_specification,
+                    list_of_access_result,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDU {
@@ -8750,6 +10353,22 @@ impl asn::Codec for RejectPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<Unsigned32>(depth)),
+            crate::strategy::values::<RejectPDURejectReason>(depth),
+        ),)
+            .prop_map(|((original_invoke_id, reject_reason),)| Self {
+                original_invoke_id,
+                reject_reason,
+            })
+            .boxed()
     }
 }
 
@@ -9096,6 +10715,50 @@ impl asn::Codec for RejectPDURejectReason {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReason {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<RejectPDURejectReasonConfirmedRequestPDU>(depth)
+                .prop_map(Self::ConfirmedRequestPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonConfirmedResponsePDU>(depth)
+                .prop_map(Self::ConfirmedResponsePDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonConfirmedErrorPDU>(depth)
+                .prop_map(Self::ConfirmedErrorPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonUnconfirmedPDU>(depth)
+                .prop_map(Self::UnconfirmedPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonPduError>(depth)
+                .prop_map(Self::PduError)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonCancelRequestPDU>(depth)
+                .prop_map(Self::CancelRequestPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonCancelResponsePDU>(depth)
+                .prop_map(Self::CancelResponsePDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonCancelErrorPDU>(depth)
+                .prop_map(Self::CancelErrorPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonConcludeRequestPDU>(depth)
+                .prop_map(Self::ConcludeRequestPDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonConcludeResponsePDU>(depth)
+                .prop_map(Self::ConcludeResponsePDU)
+                .boxed(),
+            crate::strategy::values::<RejectPDURejectReasonConcludeErrorPDU>(depth)
+                .prop_map(Self::ConcludeErrorPDU)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDURejectReasonCancelErrorPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDURejectReasonCancelErrorPDU(pub i64);
@@ -9158,6 +10821,14 @@ impl asn::Codec for RejectPDURejectReasonCancelErrorPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonCancelErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -9226,6 +10897,14 @@ impl asn::Codec for RejectPDURejectReasonCancelRequestPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonCancelRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDURejectReasonCancelResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDURejectReasonCancelResponsePDU(pub i64);
@@ -9288,6 +10967,14 @@ impl asn::Codec for RejectPDURejectReasonCancelResponsePDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonCancelResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -9358,6 +11045,14 @@ impl asn::Codec for RejectPDURejectReasonConcludeErrorPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonConcludeErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDURejectReasonConcludeRequestPDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDURejectReasonConcludeRequestPDU(pub i64);
@@ -9423,6 +11118,14 @@ impl asn::Codec for RejectPDURejectReasonConcludeRequestPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonConcludeRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDURejectReasonConcludeResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDURejectReasonConcludeResponsePDU(pub i64);
@@ -9485,6 +11188,14 @@ impl asn::Codec for RejectPDURejectReasonConcludeResponsePDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonConcludeResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -9556,6 +11267,14 @@ impl asn::Codec for RejectPDURejectReasonConfirmedErrorPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonConfirmedErrorPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -9638,6 +11357,14 @@ impl asn::Codec for RejectPDURejectReasonConfirmedRequestPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonConfirmedRequestPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDURejectReasonConfirmedResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDURejectReasonConfirmedResponsePDU(pub i64);
@@ -9711,6 +11438,14 @@ impl asn::Codec for RejectPDURejectReasonConfirmedResponsePDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonConfirmedResponsePDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `RejectPDURejectReasonPduError`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RejectPDURejectReasonPduError(pub i64);
@@ -9755,6 +11490,16 @@ impl asn::Codec for RejectPDURejectReasonPduError {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonPduError {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Integer>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -9825,6 +11570,14 @@ impl asn::Codec for RejectPDURejectReasonUnconfirmedPDU {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for RejectPDURejectReasonUnconfirmedPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `Release-request-reason`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReleaseRequestReason(pub i64);
@@ -9871,6 +11624,14 @@ impl asn::Codec for ReleaseRequestReason {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReleaseRequestReason {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -9923,6 +11684,14 @@ impl asn::Codec for ReleaseResponseReason {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReleaseResponseReason {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ScatteredAccessDescription`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScatteredAccessDescription(pub Vec<ScatteredAccessDescriptionItemItem>);
@@ -9964,6 +11733,16 @@ impl asn::Codec for ScatteredAccessDescription {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ScatteredAccessDescription {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::cyclic_list::<ScatteredAccessDescriptionItemItem>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -10061,6 +11840,26 @@ impl asn::Codec for ScatteredAccessDescriptionItemItem {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ScatteredAccessDescriptionItemItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<Identifier>(depth)),
+            crate::strategy::values::<VariableSpecification>(depth.saturating_sub(1)),
+            proptest::option::of(crate::strategy::values::<AlternateAccess>(depth)),
+        ),)
+            .prop_map(
+                |((component_name, variable_specification, alternate_access),)| Self {
+                    component_name,
+                    variable_specification,
+                    alternate_access,
+                },
+            )
+            .boxed()
     }
 }
 
@@ -10174,6 +11973,35 @@ impl asn::Codec for ServiceError {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceError {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<ServiceErrorErrorClass>(depth),
+            proptest::option::of(crate::strategy::values::<asn::Integer>(depth)),
+            proptest::option::of(crate::strategy::values::<asn::Visible>(depth)),
+            proptest::option::of(crate::strategy::values::<
+                OpaqueServiceErrorServiceSpecificInfo,
+            >(depth)),
+        ),)
+            .prop_map(
+                |((
+                    error_class,
+                    additional_code,
+                    additional_description,
+                    service_specific_info,
+                ),)| Self {
+                    error_class,
+                    additional_code,
+                    additional_description,
+                    service_specific_info,
+                },
+            )
+            .boxed()
     }
 }
 
@@ -10558,6 +12386,56 @@ impl asn::Codec for ServiceErrorErrorClass {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClass {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<ServiceErrorErrorClassVmdState>(depth)
+                .prop_map(Self::VmdState)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassApplicationReference>(depth)
+                .prop_map(Self::ApplicationReference)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassDefinition>(depth)
+                .prop_map(Self::Definition)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassResource>(depth)
+                .prop_map(Self::Resource)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassService>(depth)
+                .prop_map(Self::Service)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassServicePreempt>(depth)
+                .prop_map(Self::ServicePreempt)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassTimeResolution>(depth)
+                .prop_map(Self::TimeResolution)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassAccess>(depth)
+                .prop_map(Self::Access)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassInitiate>(depth)
+                .prop_map(Self::Initiate)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassConclude>(depth)
+                .prop_map(Self::Conclude)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassCancel>(depth)
+                .prop_map(Self::Cancel)
+                .boxed(),
+            crate::strategy::values::<ServiceErrorErrorClassFile>(depth)
+                .prop_map(Self::File)
+                .boxed(),
+            crate::strategy::values::<asn::Integer>(depth)
+                .prop_map(Self::Others)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `ServiceErrorErrorClassAccess`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorErrorClassAccess(pub i64);
@@ -10622,6 +12500,14 @@ impl asn::Codec for ServiceErrorErrorClassAccess {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassAccess {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -10696,6 +12582,14 @@ impl asn::Codec for ServiceErrorErrorClassApplicationReference {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassApplicationReference {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ServiceErrorErrorClassCancel`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorErrorClassCancel(pub i64);
@@ -10759,6 +12653,14 @@ impl asn::Codec for ServiceErrorErrorClassCancel {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassCancel {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ServiceErrorErrorClassConclude`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorErrorClassConclude(pub i64);
@@ -10817,6 +12719,14 @@ impl asn::Codec for ServiceErrorErrorClassConclude {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassConclude {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -10888,6 +12798,14 @@ impl asn::Codec for ServiceErrorErrorClassDefinition {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassDefinition {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -10968,6 +12886,14 @@ impl asn::Codec for ServiceErrorErrorClassFile {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassFile {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ServiceErrorErrorClassInitiate`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorErrorClassInitiate(pub i64);
@@ -11034,6 +12960,14 @@ impl asn::Codec for ServiceErrorErrorClassInitiate {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassInitiate {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -11106,6 +13040,14 @@ impl asn::Codec for ServiceErrorErrorClassResource {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassResource {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ServiceErrorErrorClassService`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorErrorClassService(pub i64);
@@ -11170,6 +13112,14 @@ impl asn::Codec for ServiceErrorErrorClassService {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassService {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -11238,6 +13188,14 @@ impl asn::Codec for ServiceErrorErrorClassServicePreempt {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassServicePreempt {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `ServiceErrorErrorClassTimeResolution`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceErrorErrorClassTimeResolution(pub i64);
@@ -11296,6 +13254,14 @@ impl asn::Codec for ServiceErrorErrorClassTimeResolution {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassTimeResolution {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -11363,6 +13329,14 @@ impl asn::Codec for ServiceErrorErrorClassVmdState {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceErrorErrorClassVmdState {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -11595,6 +13569,16 @@ impl asn::Codec for ServiceSupportOptions {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ServiceSupportOptions {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::BitStr>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `TimeOfDay`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimeOfDay(pub Vec<u8>);
@@ -11650,6 +13634,14 @@ impl asn::Codec for TimeOfDay {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TimeOfDay {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::time_of_day().prop_map(Self).boxed()
     }
 }
 
@@ -12051,6 +14043,62 @@ impl asn::Codec for TypeDescription {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TypeDescription {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            proptest::strategy::Just(Self::Boolean).boxed(),
+            crate::strategy::values::<Integer32>(depth)
+                .prop_map(Self::BitString)
+                .boxed(),
+            crate::strategy::values::<Unsigned8>(depth)
+                .prop_map(Self::Integer)
+                .boxed(),
+            crate::strategy::values::<Unsigned8>(depth)
+                .prop_map(Self::Unsigned)
+                .boxed(),
+            crate::strategy::values::<TypeDescriptionFloatingPoint>(depth)
+                .prop_map(Self::FloatingPoint)
+                .boxed(),
+            crate::strategy::values::<Integer32>(depth)
+                .prop_map(Self::OctetString)
+                .boxed(),
+            crate::strategy::values::<Integer32>(depth)
+                .prop_map(Self::VisibleString)
+                .boxed(),
+            proptest::strategy::Just(Self::GeneralizedTime).boxed(),
+            crate::strategy::values::<asn::Boolean>(depth)
+                .prop_map(Self::BinaryTime)
+                .boxed(),
+            crate::strategy::values::<Unsigned8>(depth)
+                .prop_map(Self::Bcd)
+                .boxed(),
+            proptest::strategy::Just(Self::ObjId).boxed(),
+            crate::strategy::values::<Integer32>(depth)
+                .prop_map(Self::MMSString)
+                .boxed(),
+            crate::strategy::unsupported(17, &[1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 15, 16])
+                .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+                .boxed(),
+        ];
+        if depth > 0 {
+            arms.extend([
+                crate::strategy::values::<asn::Boxed<TypeDescriptionArray>>(
+                    depth.saturating_sub(1),
+                )
+                .prop_map(Self::Array)
+                .boxed(),
+                crate::strategy::values::<TypeDescriptionStructure>(depth.saturating_sub(1))
+                    .prop_map(Self::Structure)
+                    .boxed(),
+            ]);
+        }
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `TypeDescriptionArray`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeDescriptionArray {
@@ -12150,6 +14198,24 @@ impl asn::Codec for TypeDescriptionArray {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TypeDescriptionArray {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+            crate::strategy::values::<Unsigned32>(depth),
+            crate::strategy::values::<asn::Boxed<TypeSpecification>>(depth.saturating_sub(1)),
+        ),)
+            .prop_map(|((packed, number_of_elements, element_type),)| Self {
+                packed,
+                number_of_elements,
+                element_type,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `TypeDescriptionFloatingPoint`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeDescriptionFloatingPoint {
@@ -12217,6 +14283,22 @@ impl asn::Codec for TypeDescriptionFloatingPoint {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TypeDescriptionFloatingPoint {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned8>(depth),
+            crate::strategy::values::<Unsigned8>(depth),
+        ),)
+            .prop_map(|((format_width, exponent_width),)| Self {
+                format_width,
+                exponent_width,
+            })
+            .boxed()
     }
 }
 
@@ -12299,6 +14381,19 @@ impl asn::Codec for TypeDescriptionStructure {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TypeDescriptionStructure {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+            crate::strategy::cyclic_list::<TypeDescriptionStructureComponentsItem>(depth),
+        ),)
+            .prop_map(|((packed, components),)| Self { packed, components })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `TypeDescriptionStructureComponentsItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeDescriptionStructureComponentsItem {
@@ -12378,6 +14473,22 @@ impl asn::Codec for TypeDescriptionStructureComponentsItem {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TypeDescriptionStructureComponentsItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<Identifier>(depth)),
+            crate::strategy::values::<TypeSpecification>(depth.saturating_sub(1)),
+        ),)
+            .prop_map(|((component_name, component_type),)| Self {
+                component_name,
+                component_type,
+            })
+            .boxed()
     }
 }
 
@@ -12464,6 +14575,25 @@ impl asn::Codec for TypeSpecification {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for TypeSpecification {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![crate::strategy::values::<ObjectName>(depth)
+            .prop_map(Self::TypeName)
+            .boxed()];
+        if depth > 0 {
+            arms.extend([crate::strategy::values::<asn::Boxed<TypeDescription>>(
+                depth.saturating_sub(1),
+            )
+            .prop_map(Self::TypeDescription)
+            .boxed()]);
+        }
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `Unconfirmed-PDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnconfirmedPDU {
@@ -12539,6 +14669,22 @@ impl asn::Codec for UnconfirmedPDU {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for UnconfirmedPDU {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<UnconfirmedService>(depth),
+            proptest::option::of(crate::strategy::values::<OpaqueUnconfirmedDetail>(depth)),
+        ),)
+            .prop_map(|((service, service_ext),)| Self {
+                service,
+                service_ext,
+            })
+            .boxed()
     }
 }
 
@@ -12636,6 +14782,23 @@ impl asn::Codec for UnconfirmedService {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for UnconfirmedService {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<InformationReport>(depth)
+                .prop_map(Self::InformationReport)
+                .boxed(),
+            crate::strategy::unsupported(0, &[0])
+                .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `Unsigned32`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unsigned32(pub i64);
@@ -12693,6 +14856,14 @@ impl asn::Codec for Unsigned32 {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Unsigned32 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
 /// ASN.1 type `Unsigned8`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unsigned8(pub i64);
@@ -12747,6 +14918,14 @@ impl asn::Codec for Unsigned8 {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for Unsigned8 {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
     }
 }
 
@@ -12847,6 +15026,25 @@ impl asn::Codec for VariableAccessSpecification {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for VariableAccessSpecification {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<asn::ListOf<VariableAccessSpecificationListOfVariableItem>>(
+                depth,
+            )
+            .prop_map(Self::ListOfVariable)
+            .boxed(),
+            crate::strategy::values::<ObjectName>(depth)
+                .prop_map(Self::VariableListName)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `VariableAccessSpecificationListOfVariableItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableAccessSpecificationListOfVariableItem {
@@ -12920,6 +15118,22 @@ impl asn::Codec for VariableAccessSpecificationListOfVariableItem {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for VariableAccessSpecificationListOfVariableItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<VariableSpecification>(depth),
+            proptest::option::of(crate::strategy::values::<AlternateAccess>(depth)),
+        ),)
+            .prop_map(|((variable_specification, alternate_access),)| Self {
+                variable_specification,
+                alternate_access,
+            })
+            .boxed()
     }
 }
 
@@ -13087,6 +15301,34 @@ impl asn::Codec for VariableSpecification {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for VariableSpecification {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<ObjectName>(depth)
+                .prop_map(Self::Name)
+                .boxed(),
+            crate::strategy::values::<Address>(depth)
+                .prop_map(Self::Address)
+                .boxed(),
+            crate::strategy::values::<VariableSpecificationVariableDescription>(depth)
+                .prop_map(Self::VariableDescription)
+                .boxed(),
+            proptest::strategy::Just(Self::Invalidated).boxed(),
+        ];
+        if depth > 0 {
+            arms.extend([crate::strategy::values::<ScatteredAccessDescription>(
+                depth.saturating_sub(1),
+            )
+            .prop_map(Self::ScatteredAccessDescription)
+            .boxed()]);
+        }
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// ASN.1 type `VariableSpecificationVariableDescription`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableSpecificationVariableDescription {
@@ -13154,6 +15396,22 @@ impl asn::Codec for VariableSpecificationVariableDescription {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for VariableSpecificationVariableDescription {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Address>(depth),
+            crate::strategy::values::<TypeSpecification>(depth),
+        ),)
+            .prop_map(|((address, type_specification),)| Self {
+                address,
+                type_specification,
+            })
+            .boxed()
     }
 }
 
@@ -13239,6 +15497,22 @@ impl asn::Codec for WriteRequest {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for WriteRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<VariableAccessSpecification>(depth),
+            crate::strategy::values::<asn::ListOf<Data>>(depth),
+        ),)
+            .prop_map(|((variable_access_specification, list_of_data),)| Self {
+                variable_access_specification,
+                list_of_data,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Write-Response`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WriteResponse(pub Vec<WriteResponseItemItem>);
@@ -13278,6 +15552,16 @@ impl asn::Codec for WriteResponse {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for WriteResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::ListOf<WriteResponseItemItem>>(depth)
+            .prop_map(Self)
+            .boxed()
     }
 }
 
@@ -13373,6 +15657,21 @@ impl asn::Codec for WriteResponseItemItem {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for WriteResponseItemItem {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<DataAccessError>(depth)
+                .prop_map(Self::Failure)
+                .boxed(),
+            proptest::strategy::Just(Self::Success).boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
 /// Codec of a type kept as raw BER.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpaqueModifier;
@@ -13393,6 +15692,17 @@ impl asn::Codec for OpaqueModifier {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         asn::write_raw(w, value, Self::accepts, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueModifier {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(
+            &[(TagClass::Context, 0), (TagClass::Context, 1)],
+            None,
+            false,
+        )
     }
 }
 
@@ -13421,6 +15731,13 @@ impl asn::Codec for OpaqueName {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueName {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(&[(TagClass::Universal, 16)], None, false)
+    }
+}
+
 /// Codec of a type kept as raw BER.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpaqueRelativeDistinguishedName;
@@ -13443,6 +15760,13 @@ impl asn::Codec for OpaqueRelativeDistinguishedName {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         asn::write_raw(w, value, Self::accepts, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueRelativeDistinguishedName {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(&[(TagClass::Universal, 17)], None, false)
     }
 }
 
@@ -13475,6 +15799,26 @@ impl asn::Codec for OpaqueRequestDetail {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueRequestDetail {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(
+            &[
+                (TagClass::Universal, 5),
+                (TagClass::Context, 38),
+                (TagClass::Context, 40),
+                (TagClass::Context, 42),
+                (TagClass::Context, 47),
+                (TagClass::Context, 51),
+                (TagClass::Context, 57),
+                (TagClass::Context, 59),
+            ],
+            None,
+            false,
+        )
+    }
+}
+
 /// Codec of a type kept as raw BER.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpaqueResponseDetail;
@@ -13497,6 +15841,22 @@ impl asn::Codec for OpaqueResponseDetail {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         asn::write_raw(w, value, Self::accepts, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueResponseDetail {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(
+            &[
+                (TagClass::Universal, 5),
+                (TagClass::Context, 0),
+                (TagClass::Context, 45),
+                (TagClass::Context, 49),
+            ],
+            None,
+            false,
+        )
     }
 }
 
@@ -13533,6 +15893,30 @@ impl asn::Codec for OpaqueServiceErrorServiceSpecificInfo {
     }
 }
 
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueServiceErrorServiceSpecificInfo {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(
+            &[
+                (TagClass::Context, 0),
+                (TagClass::Context, 1),
+                (TagClass::Context, 2),
+                (TagClass::Context, 3),
+                (TagClass::Context, 4),
+                (TagClass::Context, 5),
+                (TagClass::Context, 6),
+                (TagClass::Context, 7),
+                (TagClass::Context, 8),
+                (TagClass::Context, 9),
+                (TagClass::Context, 10),
+                (TagClass::Context, 11),
+            ],
+            None,
+            false,
+        )
+    }
+}
+
 /// Codec of a type kept as raw BER.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpaqueUnconfirmedDetail;
@@ -13553,5 +15937,16 @@ impl asn::Codec for OpaqueUnconfirmedDetail {
         implicit: Option<ber::Identifier>,
     ) -> Result<(), asn::Error> {
         asn::write_raw(w, value, Self::accepts, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for OpaqueUnconfirmedDetail {
+    fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {
+        crate::strategy::raw_with(
+            &[(TagClass::Universal, 5), (TagClass::Context, 2)],
+            None,
+            false,
+        )
     }
 }

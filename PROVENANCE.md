@@ -264,6 +264,36 @@ silent, to be confirmed by an observation test against other implementations.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/mms_pdus.rs`;
   `bench/tests/test_c7_reference_services.py`.
 
+### D-014 — Property tests: generated strategies, and the encoders made to refuse
+
+- **Decision**:
+  - **Dependency**: `proptest` (MIT or Apache-2.0) is a development dependency, and an optional
+    dependency of the codec behind the `proptest` feature. The MSRV-aware resolver picks
+    version 1.11, the last that builds with Rust 1.85; 1.12 needs 1.88.
+  - **Strategies**: `cargo xtask codegen` writes one for each generated type, on the hand-written
+    module `crate::strategy`. Recursion spends one level per cycle; at depth zero, a type keeps
+    only its alternatives that do not recurse, and lists are empty.
+  - **Properties**: 10 000 cases each, in `tests/properties.rs`.
+    - A generated value always encodes and decodes back to itself.
+    - For the hand-written layers (TPDU, SPDU, PPDU, EXTERNAL), every value that the encoder
+      accepts decodes back to itself; most of the values generated must be accepted.
+    - Random bytes and mutated encodings never make a decoder or the CBB check panic.
+  - **What they found**: four encoders wrote values that their own decoder refuses, or reads
+    back otherwise. Each now refuses them on encoding, by the rules of its decoder:
+    - TPDU: credit, class, options over 4 bits, TPDU number over 7, and a code of `other`
+      that is not defined or has its own field;
+    - SPDU: an empty Reason Code, references, selectors and Reflect over their bounds;
+    - PPDU: the numbers and bits that the CPA, CPR and ARP refuse (X.226 §8.5).
+- **Limits**:
+  - An SPDU unit of `other` whose code an SPDU decodes in a field of its own is still written;
+    the SPDU strategies leave `other` empty.
+  - The strategies cover the root values of extensible constraints only.
+- **Sources**: ITU-T X.224 §13, X.225 §8, X.226 §8.5 for the bounds, as read by the decoders of
+  tasks C2 to C4.
+- **Confidence**: high.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/properties.rs`, and one regression test for each
+  fix in `tests/transport.rs`, `tests/session.rs` and `tests/presentation.rs`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

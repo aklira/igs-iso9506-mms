@@ -575,6 +575,70 @@ impl<'a> Generator<'a> {
         false
     }
 
+    fn references(&self, name: &str) -> Vec<String> {
+        fn named(rust: &Rust, out: &mut Vec<String>) {
+            match rust {
+                Rust::Named(n) => out.push(n.clone()),
+                Rust::List(inner) => named(inner, out),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        match self.items.get(name).map(|i| &i.body) {
+            Some(Body::Struct(f)) => f.iter().for_each(|x| named(&x.rust, &mut out)),
+            Some(Body::Enum { alternatives, .. }) => {
+                alternatives.iter().for_each(|x| named(&x.rust, &mut out))
+            }
+            Some(Body::Newtype { inner, .. }) => named(inner, &mut out),
+            None => {}
+        }
+        out
+    }
+
+    /// Whether a use of a type leads back to `owner`, through lists too.
+    fn cyclic(&self, owner: &str, rust: &Rust) -> bool {
+        let start = match rust {
+            Rust::Named(n) => n.clone(),
+            Rust::List(inner) => return self.cyclic(owner, inner),
+            _ => return false,
+        };
+        let mut stack = vec![start];
+        let mut visited = BTreeSet::new();
+        while let Some(name) = stack.pop() {
+            if name == owner {
+                return true;
+            }
+            if visited.insert(name.clone()) {
+                stack.extend(self.references(&name));
+            }
+        }
+        false
+    }
+
+    /// The strategy of a use of a type, at `depth`.
+    fn strategy(&self, owner: &str, rust: &Rust) -> String {
+        if !self.cyclic(owner, rust) {
+            return format!(
+                "crate::strategy::values::<{}>(depth)",
+                self.kind(owner, rust)
+            );
+        }
+        match rust {
+            Rust::List(inner) => {
+                // A list item is never boxed (see `kind`).
+                let item = match inner.as_ref() {
+                    Rust::Named(n) => n.clone(),
+                    other => self.kind(owner, other),
+                };
+                format!("crate::strategy::cyclic_list::<{item}>(depth)")
+            }
+            _ => format!(
+                "crate::strategy::values::<{}>(depth.saturating_sub(1))",
+                self.kind(owner, rust)
+            ),
+        }
+    }
+
     /// The codec kind of a use of a type, a type implementing `asn::Codec`.
     fn kind(&self, owner: &str, rust: &Rust) -> String {
         match rust {
@@ -607,6 +671,7 @@ impl<'a> Generator<'a> {
             "{banner}\n#![allow(clippy::large_enum_variant, clippy::enum_variant_names, \
              clippy::upper_case_acronyms)]\n\n\
              use crate::asn;\n\
+             #[cfg(feature = \"proptest\")]\nuse proptest::strategy::Strategy as _;\n\
              use crate::ber::{{self, Element, Writer}};\n\
              use crate::schema::{{BitString, Member, ObjectIdentifier, Presence, RawBer, Tag, \
              TagClass, Tagging}};\n\n\
@@ -616,6 +681,7 @@ impl<'a> Generator<'a> {
         for (name, item) in &self.items {
             emit_item(self, &mut o, name, item)?;
             emit_codec(self, &mut o, name, item)?;
+            emit_strategy(self, &mut o, name, item)?;
         }
         for (name, idents) in &self.opaque {
             emit_opaque(&mut o, name, idents)?;
@@ -1107,6 +1173,142 @@ fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<
     Ok(())
 }
 
+/// Strategies of property tests for the generated types (feature `proptest`).
+const STRATEGY_HOOKS: [(&str, &str); 3] = [
+    ("Identifier", "crate::strategy::identifier()"),
+    ("TimeOfDay", "crate::strategy::time_of_day()"),
+    ("FloatingPoint", "crate::strategy::floating_point()"),
+];
+
+fn emit_strategy(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<(), Fail> {
+    writeln!(
+        o,
+        "#[cfg(feature = \"proptest\")]\nimpl crate::strategy::Values for {name} {{\n\
+         fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {{\nlet _ = depth;"
+    )?;
+    match &item.body {
+        Body::Struct(fields) if fields.is_empty() => {
+            writeln!(o, "proptest::strategy::Just(Self {{}}).boxed()")?;
+        }
+        Body::Struct(fields) => {
+            let strategy = |f: &Field| {
+                let s = g.strategy(name, &f.rust);
+                if f.presence == "Presence::Required" {
+                    s
+                } else {
+                    format!("proptest::option::of({s})")
+                }
+            };
+            let chunks: Vec<&[Field]> = fields.chunks(8).collect();
+            let tuples: Vec<String> = chunks
+                .iter()
+                .map(|c| {
+                    format!(
+                        "({},)",
+                        c.iter().map(strategy).collect::<Vec<_>>().join(", ")
+                    )
+                })
+                .collect();
+            let patterns: Vec<String> = chunks
+                .iter()
+                .map(|c| {
+                    format!(
+                        "({},)",
+                        c.iter()
+                            .map(|f| f.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                })
+                .collect();
+            let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+            writeln!(
+                o,
+                "({},).prop_map(|({},)| Self {{ {} }}).boxed()",
+                tuples.join(", "),
+                patterns.join(", "),
+                names.join(", ")
+            )?;
+        }
+        Body::Enum {
+            alternatives,
+            unsupported,
+        } => {
+            let mut leaves = Vec::new();
+            let mut cycles = Vec::new();
+            for f in alternatives {
+                let variant = camel(&f.asn);
+                let arm = if f.rust == Rust::Unit {
+                    format!("proptest::strategy::Just(Self::{variant}).boxed()")
+                } else {
+                    format!(
+                        "{}.prop_map(Self::{variant}).boxed()",
+                        g.strategy(name, &f.rust)
+                    )
+                };
+                if g.cyclic(name, &f.rust) {
+                    cycles.push(arm);
+                } else {
+                    leaves.push(arm);
+                }
+            }
+            if let Some(from) = unsupported {
+                let used: Vec<String> = alternatives
+                    .iter()
+                    .filter_map(|f| f.tag.filter(|t| t.class == Class::Context))
+                    .map(|t| t.number.to_string())
+                    .collect();
+                leaves.push(format!(
+                    "crate::strategy::unsupported({from}, &[{}]).prop_map(|(tag, raw)| Self::Unsupported {{ tag, raw }}).boxed()",
+                    used.join(", ")
+                ));
+            }
+            if leaves.is_empty() {
+                // Every alternative recurses: the recursion ends in the types below, one level
+                // lower each time.
+                writeln!(o, "let arms = vec![{}];", cycles.join(", "))?;
+            } else {
+                writeln!(
+                    o,
+                    "#[allow(unused_mut)]\nlet mut arms = vec![{}];",
+                    leaves.join(", ")
+                )?;
+                if !cycles.is_empty() {
+                    writeln!(
+                        o,
+                        "if depth > 0 {{ arms.extend([{}]); }}",
+                        cycles.join(", ")
+                    )?;
+                }
+            }
+            writeln!(o, "proptest::strategy::Union::new(arms).boxed()")?;
+        }
+        Body::Newtype {
+            inner, constraint, ..
+        } => {
+            let hook = STRATEGY_HOOKS
+                .iter()
+                .find(|(t, _)| *t == item.asn)
+                .map(|(_, s)| *s);
+            let base = if let Some(hook) = hook {
+                hook.to_owned()
+            } else if !constraint.values.is_empty() && matches!(inner, Rust::Plain("i64", _)) {
+                "crate::strategy::ranged(Self::VALUES)".to_owned()
+            } else if !constraint.sizes.is_empty() {
+                format!(
+                    "crate::strategy::sized::<{}>(Self::SIZES, depth)",
+                    g.kind(name, inner)
+                )
+            } else {
+                g.strategy(name, inner)
+            };
+            writeln!(o, "{base}.prop_map(Self).boxed()")?;
+        }
+    }
+    writeln!(o, "}}\n}}\n")?;
+    Ok(())
+}
+
 fn emit_opaque(o: &mut String, name: &str, idents: &Idents) -> Result<(), Fail> {
     let asn = name.trim_start_matches("Opaque");
     let classes = ["Universal", "Application", "Context", "Private"];
@@ -1158,6 +1360,21 @@ fn emit_opaque(o: &mut String, name: &str, idents: &Idents) -> Result<(), Fail> 
          impl asn::Codec for {name} {{\ntype Value = RawBer;\nconst NAME: &'static str = {asn:?};\n{accepts}\n\
          fn decode(e: &Element<'_>) -> Result<RawBer, asn::Error> {{ Ok(asn::raw(e, {fixed})) }}\n\
          fn encode(value: &RawBer, w: &mut Writer, implicit: Option<ber::Identifier>) -> Result<(), asn::Error> {{ asn::write_raw(w, value, Self::accepts, implicit) }}\n}}\n"
+    )?;
+    let tags: Vec<String> = idents
+        .tags
+        .iter()
+        .map(|(class, number)| format!("(TagClass::{}, {number})", classes[usize::from(*class)]))
+        .collect();
+    let from = idents
+        .context_from
+        .map_or("None".to_owned(), |f| format!("Some({f})"));
+    writeln!(
+        o,
+        "#[cfg(feature = \"proptest\")]\nimpl crate::strategy::Values for {name} {{\n\
+         fn values(_depth: u32) -> proptest::strategy::BoxedStrategy<RawBer> {{ crate::strategy::raw_with(&[{}], {from}, {}) }}\n}}\n",
+        tags.join(", "),
+        idents.any
     )?;
     Ok(())
 }
