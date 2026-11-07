@@ -395,7 +395,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | C4 Presentation PPDUs | [x] |
 | C5 ACSE APDUs | [x] |
 | C6 MMS common types | [x] |
-| C7 MMS PDUs | [ ] |
+| C7 MMS PDUs | [x] |
 | C8 Property tests | [ ] |
 | C9 Fuzzing | [ ] |
 | L1 Parameters | [ ] |
