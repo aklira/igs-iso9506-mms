@@ -23,10 +23,12 @@ mod actor;
 pub mod client;
 pub mod connector;
 pub mod error;
+pub mod server;
 pub mod transport;
 pub mod vmd;
 
 pub use client::{Client, ClientConfig, ConnectionState, Event, Events, Reconnect};
 pub use connector::{Connector, TcpConnector};
 pub use error::Error;
+pub use server::{Server, ServerConfig};
 pub use transport::{accept, connect, connect_tcp, ByteStream, Transport, CHANNEL_CAPACITY};

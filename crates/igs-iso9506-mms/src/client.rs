@@ -174,7 +174,9 @@ pub fn in_scope_capabilities() -> Capabilities {
 }
 
 /// A bit string with the bits at these positions set, at least 96 bits long (ISO 9506-2 §8.1.3).
-fn bit_string(positions: impl Iterator<Item = usize>) -> igs_iso9506_mms_codec::schema::BitString {
+pub(crate) fn bit_string(
+    positions: impl Iterator<Item = usize>,
+) -> igs_iso9506_mms_codec::schema::BitString {
     let positions: Vec<usize> = positions.collect();
     let length = positions
         .iter()
