@@ -413,7 +413,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | S3 `igsmms-server` binary | [x] |
 | S4 Server interop and load | [x] |
 | X1 TLS | [x] |
-| X2 Documentation and examples | [ ] |
+| X2 Documentation and examples | [x] |
 | X3 Supported service matrix | [ ] |
 | R1 Legal review and release ⛔ | [ ] |
 

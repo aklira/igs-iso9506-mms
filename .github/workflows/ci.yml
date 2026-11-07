@@ -44,6 +44,9 @@ jobs:
       - name: Tests
         run: cargo test --workspace --all-features
 
+      - name: Examples
+        run: cargo build --workspace --examples --all-features && cargo run -p igs-iso9506-mms --example loopback
+
       - name: Coverage (report only)
         run: cargo llvm-cov --workspace --all-features --summary-only
 

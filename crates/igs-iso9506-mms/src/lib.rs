@@ -4,8 +4,16 @@
 
 //! Async MMS client and server over TCP and TLS.
 //!
-//! See IMPLEMENTATION.md section 2. This crate drives the sans-I/O layers of the link crate on
-//! tokio; the transport driver is in [`transport`].
+//! The crate drives the sans-I/O layers of `igs-iso9506-mms-link` on tokio. The transport driver is in
+//! [`transport`]; the client is [`Client`], the server is [`Server`], the model of the device is [`vmd`],
+//! and TLS is in [`tls`].
+//!
+//! # Quick start
+//!
+//! A server and a client in one process: `cargo run -p igs-iso9506-mms --example loopback` (the source is in
+//! `examples/loopback.rs`). The examples `client`, `server` and `tls` run the same services over TCP and TLS.
+//!
+//! The services in scope and the known gaps are listed in `docs/capabilities.md`.
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
