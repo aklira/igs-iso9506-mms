@@ -223,6 +223,47 @@ silent, to be confirmed by an observation test against other implementations.
   the bench (tasks L6, T4).
 - **Test**: `crates/igs-iso9506-mms-codec/tests/common_types.rs`.
 
+### D-013 — MMS PDUs: decoding the union of the directives, checking the CBBs apart
+
+- **Decision**: decoding reads the union of the IF branches of ISO 9506-2; `mms::validate_cbb`
+  then checks a PDU against the negotiation of the user that serves its service.
+  - **Directives**:
+    - The ELSE branches that only reserve a tag with a NULL are not read.
+    - The components that an excluded CBB (`csr`, `cspi`) makes required inside its directive
+      are optional: the Initiate PDUs of the bench peer omit them.
+    - The `char` strings follow D-012.
+  - **Unknown elements**: the Initiate request and response, and their details, ignore them
+    (ISO 9506-2 §8.2). The Initiate error does not, as its type is the shared ServiceError.
+  - **CBB bit strings**: read at any size. A sender encodes all the bits and a receiver ignores
+    the bits it does not know (ISO 9506-1 §8.2.1.1.6, §8.2.1.1.8), so a missing bit reads as not
+    supported. Writing the bits of this edition is left to the association (task L4). This
+    settles the CBB size question left open in D-011.
+  - **Context tags beyond the last alternative**: `Data` and `TypeDescription` keep them as raw
+    BER. The bench peer sends `[17]`, which ISO 9506 does not define.
+  - **Identifier**: it stays at 32 characters. The bench peer, an IEC 61850 server, names its
+    objects with up to 39 characters; the two getNameList responses that carry such names are
+    refused. This gap is recorded for the IEC 61850 phase.
+  - **The check**:
+    - A service, modifier, Cancel or Conclude must be supported by the user that serves it
+      (ISO 9506-1 §8.2.1.1.8, §8.2.1.2.8). The CBBs required around the service in the tables
+      must be negotiated.
+    - Each parameter must have its CBB, as ISO 9506-1 §8.1.3.15 and the directives assign them:
+      - `str1` for arrays and indexes, `str2` for structures, components and named access;
+      - `vnam` for names, `vadr` for addresses and packed types, `vsca` for scattered access;
+      - `valt` for alternate access and component names, `vlis` for list names;
+      - `aco`, `sem`, `cspi` for their fields, and `csr` or `cspi` for the service extensions.
+    - Data and type descriptions stay within the negotiated nesting level (§8.1.3.16).
+    - The Initiate, Reject and error PDUs are not checked.
+- **Sources**: ISO 9506-2 §7, §8.2, §10, §14 with their directives; ISO 9506-1 §8.1.3.15,
+  §8.1.3.16, §8.2.1.1.6, §8.2.1.1.8, §8.2.1.2.6, §8.2.1.2.8; IEC 60870-6-702 table A.19.
+  Observation: of 112 distinct PDUs exchanged by the reference clients and server, 110 decode.
+  They meet the observed negotiation, and re-encode octet for octet, except a TRUE that the peer
+  writes as `01` (D-007).
+- **Confidence**: high for the structure. Medium for two points: `valt` for the component names
+  of a type description (§8.1.3.15.4 read as written), and the strict identifier length.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/mms_pdus.rs`;
+  `bench/tests/test_c7_reference_services.py`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

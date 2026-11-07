@@ -339,10 +339,11 @@ pub fn write_raw(
     Ok(())
 }
 
-/// Writes the raw encoding of an alternative out of scope, after checking its tag.
-pub fn write_unsupported(w: &mut Writer, tag: u32, value: &RawBer) -> Result<(), Error> {
+/// Writes the raw encoding of an alternative out of scope, after checking its tag: a context tag
+/// numbered `tag`, from `from` on.
+pub fn write_unsupported(w: &mut Writer, tag: u32, from: u32, value: &RawBer) -> Result<(), Error> {
     match Reader::new(&value.0).peek_identifier() {
-        Ok(Some(id)) if id.class == TagClass::Context && id.number == tag => {
+        Ok(Some(id)) if id.class == TagClass::Context && id.number == tag && tag >= from => {
             write_raw(w, value, |_| true, None)
         }
         _ => Err(Error::InvalidRaw),

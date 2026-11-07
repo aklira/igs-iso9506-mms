@@ -12,8 +12,18 @@
 //! VisibleStrings. The integers of [`Data`](crate::mms::Data) hold up to 128 bits: a type
 //! description gives them at most 127.
 
+mod cbb;
 mod floating;
 mod time;
+
+pub use crate::generated::types::{
+    ConcludeErrorPDU, ConcludeRequestPDU, ConcludeResponsePDU, ConfirmedErrorPDU,
+    ConfirmedRequestPDU, ConfirmedResponsePDU, ConfirmedServiceRequest, ConfirmedServiceResponse,
+    InitiateErrorPDU, InitiateRequestPDU, InitiateRequestPDUInitRequestDetail, InitiateResponsePDU,
+    InitiateResponsePDUInitResponseDetail, MMSpdu, RejectPDU, RejectPDURejectReason, ServiceError,
+    UnconfirmedPDU, UnconfirmedService,
+};
+pub use cbb::{validate_cbb, CbbError, Negotiated};
 
 pub use crate::generated::types::{
     AccessResult, Data, DataAccessError, FloatingPoint, Identifier, Integer16, Integer32, Integer8,
@@ -23,7 +33,18 @@ pub use crate::generated::types::{
 };
 pub use time::MAX_MILLISECONDS;
 
-use crate::asn::Error;
+use crate::asn::{self, Error};
+
+/// Decodes one MMS PDU that fills `bytes`; check it with [`validate_cbb`] once the association
+/// is negotiated.
+pub fn decode(bytes: &[u8]) -> Result<MMSpdu, Error> {
+    asn::decode_value::<MMSpdu>(bytes)
+}
+
+/// Encodes an MMS PDU.
+pub fn encode(pdu: &MMSpdu) -> Result<Vec<u8>, Error> {
+    asn::encode_value::<MMSpdu>(pdu)
+}
 
 /// Whether a character is allowed in an Identifier: letters, digits, `$` and `_` (ISO 9506-2
 /// §7.5.2, the branch without the `char` CBB).

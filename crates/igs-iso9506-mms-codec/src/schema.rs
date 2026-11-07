@@ -79,6 +79,20 @@ pub struct BitString {
     pub bytes: Vec<u8>,
 }
 
+impl BitString {
+    /// Whether bit `index` is present and set; bit 0 is the leading bit (X.690 §8.6.2).
+    pub fn bit(&self, index: usize) -> bool {
+        let present = self
+            .bytes
+            .len()
+            .saturating_mul(8)
+            .saturating_sub(usize::from(self.unused))
+            > index;
+        let mask = 0x80u8.checked_shr((index % 8) as u32).unwrap_or(0);
+        present && self.bytes.get(index / 8).is_some_and(|b| b & mask != 0)
+    }
+}
+
 /// An OBJECT IDENTIFIER value.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ObjectIdentifier(pub Vec<u64>);

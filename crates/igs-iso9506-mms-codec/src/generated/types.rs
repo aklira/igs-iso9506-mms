@@ -3877,7 +3877,7 @@ pub enum ConfirmedServiceRequest {
     GetNamedVariableListAttributes(GetNamedVariableListAttributesRequest),
     /// Alternative `deleteNamedVariableList`.
     DeleteNamedVariableList(DeleteNamedVariableListRequest),
-    /// An alternative out of scope, kept as received.
+    /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
         tag: u32,
@@ -4100,7 +4100,21 @@ impl ConfirmedServiceRequest {
                 v,
                 w,
             ),
-            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, raw),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
+        }
+    }
+    /// The context tag number of the alternative.
+    pub fn tag(&self) -> u32 {
+        match self {
+            Self::GetNameList(_) => 1,
+            Self::Identify(_) => 2,
+            Self::Read(_) => 4,
+            Self::Write(_) => 5,
+            Self::GetVariableAccessAttributes(_) => 6,
+            Self::DefineNamedVariableList(_) => 11,
+            Self::GetNamedVariableListAttributes(_) => 12,
+            Self::DeleteNamedVariableList(_) => 13,
+            Self::Unsupported { tag, .. } => *tag,
         }
     }
 }
@@ -4142,7 +4156,7 @@ pub enum ConfirmedServiceResponse {
     GetNamedVariableListAttributes(GetNamedVariableListAttributesResponse),
     /// Alternative `deleteNamedVariableList`.
     DeleteNamedVariableList(DeleteNamedVariableListResponse),
-    /// An alternative out of scope, kept as received.
+    /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
         tag: u32,
@@ -4367,7 +4381,21 @@ impl ConfirmedServiceResponse {
                 v,
                 w,
             ),
-            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, raw),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
+        }
+    }
+    /// The context tag number of the alternative.
+    pub fn tag(&self) -> u32 {
+        match self {
+            Self::GetNameList(_) => 1,
+            Self::Identify(_) => 2,
+            Self::Read(_) => 4,
+            Self::Write(_) => 5,
+            Self::GetVariableAccessAttributes(_) => 6,
+            Self::DefineNamedVariableList(_) => 11,
+            Self::GetNamedVariableListAttributes(_) => 12,
+            Self::DeleteNamedVariableList(_) => 13,
+            Self::Unsupported { tag, .. } => *tag,
         }
     }
 }
@@ -4423,6 +4451,13 @@ pub enum Data {
     ObjId(ObjectIdentifier),
     /// Alternative `mMSString`.
     MMSString(MMSString),
+    /// An alternative out of scope or not defined here, kept as received.
+    Unsupported {
+        /// Tag number.
+        tag: u32,
+        /// Contents.
+        raw: RawBer,
+    },
 }
 
 impl Data {
@@ -4555,6 +4590,7 @@ impl Data {
                 Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)),
                 id,
             )
+            || (id.class == TagClass::Context && id.number >= 17)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
         let id = e.identifier;
@@ -4676,6 +4712,12 @@ impl Data {
                 e,
             )?));
         }
+        if id.class == TagClass::Context && id.number >= 17 {
+            return Ok(Self::Unsupported {
+                tag: id.number,
+                raw: asn::raw(e, None),
+            });
+        }
         Err(asn::Error::NoAlternative {
             ty: "Data",
             found: id,
@@ -4763,6 +4805,28 @@ impl Data {
                 v,
                 w,
             ),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 17, raw),
+        }
+    }
+    /// The context tag number of the alternative.
+    pub fn tag(&self) -> u32 {
+        match self {
+            Self::Array(_) => 1,
+            Self::Structure(_) => 2,
+            Self::Boolean(_) => 3,
+            Self::BitString(_) => 4,
+            Self::Integer(_) => 5,
+            Self::Unsigned(_) => 6,
+            Self::FloatingPoint(_) => 7,
+            Self::OctetString(_) => 9,
+            Self::VisibleString(_) => 10,
+            Self::GeneralizedTime(_) => 11,
+            Self::BinaryTime(_) => 12,
+            Self::Bcd(_) => 13,
+            Self::BooleanArray(_) => 14,
+            Self::ObjId(_) => 15,
+            Self::MMSString(_) => 16,
+            Self::Unsupported { tag, .. } => *tag,
         }
     }
 }
@@ -6524,7 +6588,28 @@ impl InitiateRequestPDU {
         asn::is_universal(id, 16)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        let mut c = asn::Components::new(e, "Initiate-RequestPDU", None)?;
+        let mut c = asn::Components::new(
+            e,
+            "Initiate-RequestPDU",
+            Some(|id: ber::Identifier| {
+                asn::accepts::<Integer32>(
+                    Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<Integer16>(
+                    Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<Integer16>(
+                    Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<Integer8>(
+                    Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<InitiateRequestPDUInitRequestDetail>(
+                    Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
+                    id,
+                )
+            }),
+        )?;
         let local_detail_calling =
             c.optional::<Integer32>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)))?;
         let proposed_max_serv_outstanding_calling = c.required::<Integer16>(
@@ -6614,11 +6699,11 @@ pub struct InitiateRequestPDUInitRequestDetail {
     /// Component `servicesSupportedCalling`.
     pub services_supported_calling: ServiceSupportOptions,
     /// Component `additionalSupportedCalling`.
-    pub additional_supported_calling: AdditionalSupportOptions,
+    pub additional_supported_calling: Option<AdditionalSupportOptions>,
     /// Component `additionalCbbSupportedCalling`.
-    pub additional_cbb_supported_calling: AdditionalCBBOptions,
+    pub additional_cbb_supported_calling: Option<AdditionalCBBOptions>,
     /// Component `privilegeClassIdentityCalling`.
-    pub privilege_class_identity_calling: String,
+    pub privilege_class_identity_calling: Option<String>,
 }
 
 impl InitiateRequestPDUInitRequestDetail {
@@ -6642,17 +6727,17 @@ impl InitiateRequestPDUInitRequestDetail {
         Member {
             name: "additionalSupportedCalling",
             tag: Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
-            presence: Presence::Required,
+            presence: Presence::Optional,
         },
         Member {
             name: "additionalCbbSupportedCalling",
             tag: Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
-            presence: Presence::Required,
+            presence: Presence::Optional,
         },
         Member {
             name: "privilegeClassIdentityCalling",
             tag: Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
-            presence: Presence::Required,
+            presence: Presence::Optional,
         },
     ];
 }
@@ -6662,7 +6747,31 @@ impl InitiateRequestPDUInitRequestDetail {
         asn::is_universal(id, 16)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        let mut c = asn::Components::new(e, "InitiateRequestPDUInitRequestDetail", None)?;
+        let mut c = asn::Components::new(
+            e,
+            "InitiateRequestPDUInitRequestDetail",
+            Some(|id: ber::Identifier| {
+                asn::accepts::<Integer16>(
+                    Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<ParameterSupportOptions>(
+                    Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<ServiceSupportOptions>(
+                    Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<AdditionalSupportOptions>(
+                    Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<AdditionalCBBOptions>(
+                    Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<asn::Visible>(
+                    Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
+                    id,
+                )
+            }),
+        )?;
         let proposed_version_number = c.required::<Integer16>(
             Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
             "proposedVersionNumber",
@@ -6675,18 +6784,14 @@ impl InitiateRequestPDUInitRequestDetail {
             Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
             "servicesSupportedCalling",
         )?;
-        let additional_supported_calling = c.required::<AdditionalSupportOptions>(
-            Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
-            "additionalSupportedCalling",
-        )?;
-        let additional_cbb_supported_calling = c.required::<AdditionalCBBOptions>(
-            Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
-            "additionalCbbSupportedCalling",
-        )?;
-        let privilege_class_identity_calling = c.required::<asn::Visible>(
-            Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
-            "privilegeClassIdentityCalling",
-        )?;
+        let additional_supported_calling = c.optional::<AdditionalSupportOptions>(Some(
+            Tag::new(TagClass::Context, 3, Tagging::Implicit),
+        ))?;
+        let additional_cbb_supported_calling = c.optional::<AdditionalCBBOptions>(Some(
+            Tag::new(TagClass::Context, 4, Tagging::Implicit),
+        ))?;
+        let privilege_class_identity_calling =
+            c.optional::<asn::Visible>(Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)))?;
         c.finish()?;
         Ok(Self {
             proposed_version_number,
@@ -6718,17 +6823,17 @@ impl InitiateRequestPDUInitRequestDetail {
                 &self.services_supported_calling,
                 w,
             )?;
-            asn::encode::<AdditionalSupportOptions>(
+            asn::encode_optional::<AdditionalSupportOptions>(
                 Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
                 &self.additional_supported_calling,
                 w,
             )?;
-            asn::encode::<AdditionalCBBOptions>(
+            asn::encode_optional::<AdditionalCBBOptions>(
                 Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
                 &self.additional_cbb_supported_calling,
                 w,
             )?;
-            asn::encode::<asn::Visible>(
+            asn::encode_optional::<asn::Visible>(
                 Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
                 &self.privilege_class_identity_calling,
                 w,
@@ -6807,7 +6912,28 @@ impl InitiateResponsePDU {
         asn::is_universal(id, 16)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        let mut c = asn::Components::new(e, "Initiate-ResponsePDU", None)?;
+        let mut c = asn::Components::new(
+            e,
+            "Initiate-ResponsePDU",
+            Some(|id: ber::Identifier| {
+                asn::accepts::<Integer32>(
+                    Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<Integer16>(
+                    Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<Integer16>(
+                    Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<Integer8>(
+                    Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<InitiateResponsePDUInitResponseDetail>(
+                    Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
+                    id,
+                )
+            }),
+        )?;
         let local_detail_called =
             c.optional::<Integer32>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)))?;
         let negotiated_max_serv_outstanding_calling = c.required::<Integer16>(
@@ -6897,11 +7023,11 @@ pub struct InitiateResponsePDUInitResponseDetail {
     /// Component `servicesSupportedCalled`.
     pub services_supported_called: ServiceSupportOptions,
     /// Component `additionalSupportedCalled`.
-    pub additional_supported_called: AdditionalSupportOptions,
+    pub additional_supported_called: Option<AdditionalSupportOptions>,
     /// Component `additionalCbbSupportedCalled`.
-    pub additional_cbb_supported_called: AdditionalCBBOptions,
+    pub additional_cbb_supported_called: Option<AdditionalCBBOptions>,
     /// Component `privilegeClassIdentityCalled`.
-    pub privilege_class_identity_called: String,
+    pub privilege_class_identity_called: Option<String>,
 }
 
 impl InitiateResponsePDUInitResponseDetail {
@@ -6925,17 +7051,17 @@ impl InitiateResponsePDUInitResponseDetail {
         Member {
             name: "additionalSupportedCalled",
             tag: Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
-            presence: Presence::Required,
+            presence: Presence::Optional,
         },
         Member {
             name: "additionalCbbSupportedCalled",
             tag: Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
-            presence: Presence::Required,
+            presence: Presence::Optional,
         },
         Member {
             name: "privilegeClassIdentityCalled",
             tag: Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
-            presence: Presence::Required,
+            presence: Presence::Optional,
         },
     ];
 }
@@ -6945,7 +7071,31 @@ impl InitiateResponsePDUInitResponseDetail {
         asn::is_universal(id, 16)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
-        let mut c = asn::Components::new(e, "InitiateResponsePDUInitResponseDetail", None)?;
+        let mut c = asn::Components::new(
+            e,
+            "InitiateResponsePDUInitResponseDetail",
+            Some(|id: ber::Identifier| {
+                asn::accepts::<Integer16>(
+                    Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<ParameterSupportOptions>(
+                    Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<ServiceSupportOptions>(
+                    Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<AdditionalSupportOptions>(
+                    Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<AdditionalCBBOptions>(
+                    Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
+                    id,
+                ) || asn::accepts::<asn::Visible>(
+                    Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
+                    id,
+                )
+            }),
+        )?;
         let negotiated_version_number = c.required::<Integer16>(
             Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
             "negotiatedVersionNumber",
@@ -6958,18 +7108,14 @@ impl InitiateResponsePDUInitResponseDetail {
             Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
             "servicesSupportedCalled",
         )?;
-        let additional_supported_called = c.required::<AdditionalSupportOptions>(
-            Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
-            "additionalSupportedCalled",
-        )?;
-        let additional_cbb_supported_called = c.required::<AdditionalCBBOptions>(
-            Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
-            "additionalCbbSupportedCalled",
-        )?;
-        let privilege_class_identity_called = c.required::<asn::Visible>(
-            Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
-            "privilegeClassIdentityCalled",
-        )?;
+        let additional_supported_called = c.optional::<AdditionalSupportOptions>(Some(
+            Tag::new(TagClass::Context, 3, Tagging::Implicit),
+        ))?;
+        let additional_cbb_supported_called = c.optional::<AdditionalCBBOptions>(Some(
+            Tag::new(TagClass::Context, 4, Tagging::Implicit),
+        ))?;
+        let privilege_class_identity_called =
+            c.optional::<asn::Visible>(Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)))?;
         c.finish()?;
         Ok(Self {
             negotiated_version_number,
@@ -7001,17 +7147,17 @@ impl InitiateResponsePDUInitResponseDetail {
                 &self.services_supported_called,
                 w,
             )?;
-            asn::encode::<AdditionalSupportOptions>(
+            asn::encode_optional::<AdditionalSupportOptions>(
                 Some(Tag::new(TagClass::Context, 3, Tagging::Implicit)),
                 &self.additional_supported_called,
                 w,
             )?;
-            asn::encode::<AdditionalCBBOptions>(
+            asn::encode_optional::<AdditionalCBBOptions>(
                 Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
                 &self.additional_cbb_supported_called,
                 w,
             )?;
-            asn::encode::<asn::Visible>(
+            asn::encode_optional::<asn::Visible>(
                 Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
                 &self.privilege_class_identity_called,
                 w,
@@ -11538,6 +11684,13 @@ pub enum TypeDescription {
     ObjId,
     /// Alternative `mMSString`.
     MMSString(Integer32),
+    /// An alternative out of scope or not defined here, kept as received.
+    Unsupported {
+        /// Tag number.
+        tag: u32,
+        /// Contents.
+        raw: RawBer,
+    },
 }
 
 impl TypeDescription {
@@ -11669,6 +11822,7 @@ impl TypeDescription {
                 Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
                 id,
             )
+            || (id.class == TagClass::Context && id.number >= 17)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
         let id = e.identifier;
@@ -11766,6 +11920,12 @@ impl TypeDescription {
                 e,
             )?));
         }
+        if id.class == TagClass::Context && id.number >= 17 {
+            return Ok(Self::Unsupported {
+                tag: id.number,
+                raw: asn::raw(e, None),
+            });
+        }
         Err(asn::Error::NoAlternative {
             ty: "TypeDescription",
             found: id,
@@ -11848,6 +12008,27 @@ impl TypeDescription {
                 v,
                 w,
             ),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 17, raw),
+        }
+    }
+    /// The context tag number of the alternative.
+    pub fn tag(&self) -> u32 {
+        match self {
+            Self::Array(_) => 1,
+            Self::Structure(_) => 2,
+            Self::Boolean => 3,
+            Self::BitString(_) => 4,
+            Self::Integer(_) => 5,
+            Self::Unsigned(_) => 6,
+            Self::FloatingPoint(_) => 7,
+            Self::OctetString(_) => 9,
+            Self::VisibleString(_) => 10,
+            Self::GeneralizedTime => 11,
+            Self::BinaryTime(_) => 12,
+            Self::Bcd(_) => 13,
+            Self::ObjId => 15,
+            Self::MMSString(_) => 16,
+            Self::Unsupported { tag, .. } => *tag,
         }
     }
 }
@@ -12366,7 +12547,7 @@ impl asn::Codec for UnconfirmedPDU {
 pub enum UnconfirmedService {
     /// Alternative `informationReport`.
     InformationReport(InformationReport),
-    /// An alternative out of scope, kept as received.
+    /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
         tag: u32,
@@ -12425,7 +12606,14 @@ impl UnconfirmedService {
                 v,
                 w,
             ),
-            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, raw),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
+        }
+    }
+    /// The context tag number of the alternative.
+    pub fn tag(&self) -> u32 {
+        match self {
+            Self::InformationReport(_) => 0,
+            Self::Unsupported { tag, .. } => *tag,
         }
     }
 }

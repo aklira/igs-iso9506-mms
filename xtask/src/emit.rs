@@ -33,8 +33,15 @@ const OPAQUE: [&str; 9] = [
 /// CHOICE whose only alternative is a SEQUENCE OF, and §9.3 `RelativeDistinguishedName` as a SET OF.
 const FOREIGN: [(&str, u32); 2] = [("Name", 16), ("RelativeDistinguishedName", 17)];
 
-/// SEQUENCEs that skip the encodings they do not know: X.227 §7.4 asks it of an incoming AARQ.
-const LENIENT: [&str; 1] = ["AARQ-apdu"];
+/// SEQUENCEs that skip the encodings they do not know: X.227 §7.4 asks it of an incoming AARQ,
+/// ISO 9506-2 §8.2 of the Initiate PDUs, whose details are read the same way.
+const LENIENT: [&str; 5] = [
+    "AARQ-apdu",
+    "Initiate-RequestPDU",
+    "Initiate-ResponsePDU",
+    "InitiateRequestPDUInitRequestDetail",
+    "InitiateResponsePDUInitResponseDetail",
+];
 
 /// Types whose constraint is not checked: the edition read fixes the size of the CBB bit
 /// strings, while a peer of an earlier version sends fewer bits (85 and 11 on the bench, task F5).
@@ -65,6 +72,39 @@ const HOOKS: [(&str, &str); 3] = [
     ("Identifier", "crate::mms::check_identifier"),
     ("TimeOfDay", "crate::mms::check_time_of_day"),
     ("FloatingPoint", "crate::mms::check_floating_point"),
+];
+
+/// CHOICEs that keep, as raw BER, the context tags beyond their last alternative. ISO 9506 defines
+/// no such tag, but the bench peer sends `[17]` in both (task C7).
+const OPEN_CHOICES: [&str; 2] = ["Data", "TypeDescription"];
+
+/// Components under an IF directive of a CBB that the profile excludes (`csr`, `cspi`; IEC
+/// 60870-6-702 table A.19), required inside the directive: optional here (ISO 9506-2 §8.2).
+const CONDITIONAL: [(&str, &str); 6] = [
+    (
+        "InitiateRequestPDUInitRequestDetail",
+        "additionalSupportedCalling",
+    ),
+    (
+        "InitiateRequestPDUInitRequestDetail",
+        "additionalCbbSupportedCalling",
+    ),
+    (
+        "InitiateRequestPDUInitRequestDetail",
+        "privilegeClassIdentityCalling",
+    ),
+    (
+        "InitiateResponsePDUInitResponseDetail",
+        "additionalSupportedCalled",
+    ),
+    (
+        "InitiateResponsePDUInitResponseDetail",
+        "additionalCbbSupportedCalled",
+    ),
+    (
+        "InitiateResponsePDUInitResponseDetail",
+        "privilegeClassIdentityCalled",
+    ),
 ];
 
 /// Members kept as raw BER: their alternatives belong to services out of scope.
@@ -134,12 +174,12 @@ fn plain(rust: &'static str, kind: &str) -> Rust {
     Rust::Plain(rust, format!("asn::{kind}"))
 }
 
-/// The identifiers that can start a value: tags as (class, number), any context tag (the
-/// `Unsupported` variant), or any tag at all (open types).
+/// The identifiers that can start a value: tags as (class, number), context tags from a number on
+/// (the `Unsupported` variant), or any tag at all (open types).
 #[derive(Clone, Debug, Default)]
 struct Idents {
     any: bool,
-    any_context: bool,
+    context_from: Option<u32>,
     tags: BTreeSet<(u8, u32)>,
 }
 
@@ -166,16 +206,27 @@ impl Idents {
 
     fn join(&mut self, other: &Idents) {
         self.any |= other.any;
-        self.any_context |= other.any_context;
+        self.context_from = match (self.context_from, other.context_from) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         self.tags.extend(other.tags.iter().copied());
     }
 
+    fn is_empty(&self) -> bool {
+        !self.any && self.context_from.is_none() && self.tags.is_empty()
+    }
+
+    /// Whether some context tag from `from` on starts a value.
+    fn has_context_from(&self, from: u32) -> bool {
+        self.context_from.is_some() || self.tags.iter().any(|t| t.0 == 2 && t.1 >= from)
+    }
+
     fn overlaps(&self, other: &Idents) -> bool {
-        let context = |i: &Idents| i.any_context || i.tags.iter().any(|t| t.0 == 2);
-        (self.any && (other.any || other.any_context || !other.tags.is_empty()))
-            || (other.any && (self.any_context || !self.tags.is_empty()))
-            || (self.any_context && context(other))
-            || (other.any_context && context(self))
+        (self.any && !other.is_empty())
+            || (other.any && !self.is_empty())
+            || self.context_from.is_some_and(|n| other.has_context_from(n))
+            || other.context_from.is_some_and(|n| self.has_context_from(n))
             || !self.tags.is_disjoint(&other.tags)
     }
 }
@@ -193,7 +244,8 @@ enum Body {
     Struct(Vec<Field>),
     Enum {
         alternatives: Vec<Field>,
-        unsupported: bool,
+        /// Context tags from this number on, not matched by an alternative, are kept raw.
+        unsupported: Option<u32>,
     },
     Newtype {
         inner: Rust,
@@ -306,9 +358,14 @@ impl<'a> Generator<'a> {
                 out
             }
             Kind::Reference(name) if SERVICE_CHOICES.iter().any(|(n, _)| n == name) => Idents {
-                any_context: true,
+                context_from: Some(0),
                 ..Idents::default()
             },
+            Kind::Reference(name) if OPEN_CHOICES.contains(&name.as_str()) => {
+                let mut out = self.idents(&self.lookup(name)?)?;
+                out.context_from = Some(next_context_tag(&out));
+                out
+            }
             Kind::Reference(name) => match FOREIGN.iter().find(|(n, _)| n == name) {
                 Some((_, number)) => Idents::universal(*number),
                 None => self.idents(&self.lookup(name)?)?,
@@ -387,7 +444,8 @@ impl<'a> Generator<'a> {
         } else {
             self.rust(&member.ty, &hint)?
         };
-        let presence = match (&member.default, member.optional) {
+        let conditional = CONDITIONAL.contains(&(asn, member.name.as_str()));
+        let presence = match (&member.default, member.optional || conditional) {
             (Some(value), _) => format!("Presence::Default({value:?})"),
             (None, true) => "Presence::Optional".to_owned(),
             (None, false) => "Presence::Required".to_owned(),
@@ -418,12 +476,22 @@ impl<'a> Generator<'a> {
                     })
                 };
                 let members: Vec<Member> = members.iter().filter(kept).cloned().collect();
+                let alternatives: Vec<Field> = members
+                    .iter()
+                    .map(|m| self.field(rust, asn, m))
+                    .collect::<Result<_, _>>()?;
+                let unsupported = if family.is_some() {
+                    Some(0)
+                } else if OPEN_CHOICES.contains(&asn) {
+                    let mut all = Idents::default();
+                    alternatives.iter().for_each(|a| all.join(&a.idents));
+                    Some(next_context_tag(&all))
+                } else {
+                    None
+                };
                 Body::Enum {
-                    alternatives: members
-                        .iter()
-                        .map(|m| self.field(rust, asn, m))
-                        .collect::<Result<_, _>>()?,
-                    unsupported: family.is_some(),
+                    alternatives,
+                    unsupported,
                 }
             }
             other => {
@@ -556,6 +624,17 @@ impl<'a> Generator<'a> {
     }
 }
 
+/// The first context tag number after those of `idents`.
+fn next_context_tag(idents: &Idents) -> u32 {
+    idents
+        .tags
+        .iter()
+        .filter(|t| t.0 == 2)
+        .map(|t| t.1.saturating_add(1))
+        .max()
+        .unwrap_or(0)
+}
+
 fn tag_text(tag: Option<Tag>) -> String {
     let Some(tag) = tag else {
         return "None".to_owned();
@@ -639,8 +718,11 @@ fn emit_item(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<(
                     writeln!(o, "    {}({}),", camel(&f.asn), g.text(name, &f.rust))?;
                 }
             }
-            if *unsupported {
-                writeln!(o, "    /// An alternative out of scope, kept as received.")?;
+            if unsupported.is_some() {
+                writeln!(
+                    o,
+                    "    /// An alternative out of scope or not defined here, kept as received."
+                )?;
                 writeln!(o, "    Unsupported {{ /// Tag number.\n tag: u32, /// Contents.\n raw: RawBer }},")?;
             }
             writeln!(o, "}}\n\nimpl {name} {{")?;
@@ -824,8 +906,15 @@ fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<
                     )
                 })
                 .collect();
-            if *unsupported {
-                tests.push("id.class == TagClass::Context".to_owned());
+            let from_test = unsupported.map(|n| {
+                if n == 0 {
+                    "id.class == TagClass::Context".to_owned()
+                } else {
+                    format!("(id.class == TagClass::Context && id.number >= {n})")
+                }
+            });
+            if let Some(test) = &from_test {
+                tests.push(test.clone());
             }
             if tests.is_empty() {
                 tests.push("false".to_owned());
@@ -857,10 +946,11 @@ fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<
                     )?;
                 }
             }
-            if *unsupported {
+            if let Some(test) = &from_test {
+                let test = test.trim_start_matches('(').trim_end_matches(')');
                 writeln!(
                     o,
-                    "if id.class == TagClass::Context {{ return Ok(Self::Unsupported {{ tag: id.number, raw: asn::raw(e, None) }}); }}"
+                    "if {test} {{ return Ok(Self::Unsupported {{ tag: id.number, raw: asn::raw(e, None) }}); }}"
                 )?;
             }
             writeln!(
@@ -888,13 +978,33 @@ fn emit_codec(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<
                     )?;
                 }
             }
-            if *unsupported {
+            if let Some(from) = unsupported {
                 writeln!(
                     o,
-                    "Self::Unsupported {{ tag, raw }} => asn::write_unsupported(w, *tag, raw),"
+                    "Self::Unsupported {{ tag, raw }} => asn::write_unsupported(w, *tag, {from}, raw),"
                 )?;
             }
             writeln!(o, "}}\n}}")?;
+            let tags: Option<Vec<(String, u32, bool)>> = alternatives
+                .iter()
+                .map(|f| {
+                    f.tag
+                        .filter(|t| t.class == Class::Context)
+                        .map(|t| (camel(&f.asn), t.number, f.rust == Rust::Unit))
+                })
+                .collect();
+            if let (Some(tags), Some(_)) = (tags, unsupported) {
+                writeln!(o, "/// The context tag number of the alternative.\npub fn tag(&self) -> u32 {{\nmatch self {{")?;
+                for (variant, number, unit) in tags {
+                    let pattern = if unit {
+                        String::new()
+                    } else {
+                        "(_)".to_owned()
+                    };
+                    writeln!(o, "Self::{variant}{pattern} => {number},")?;
+                }
+                writeln!(o, "Self::Unsupported {{ tag, .. }} => *tag,\n}}\n}}")?;
+            }
         }
         Body::Newtype {
             inner, constraint, ..
@@ -1013,8 +1123,10 @@ fn emit_opaque(o: &mut String, name: &str, idents: &Idents) -> Result<(), Fail> 
     if tests.len() > 1 {
         tests = tests.into_iter().map(|t| format!("({t})")).collect();
     }
-    if idents.any_context {
-        tests.push("id.class == TagClass::Context".to_owned());
+    if let Some(from) = idents.context_from {
+        tests.push(format!(
+            "(id.class == TagClass::Context && id.number >= {from})"
+        ));
     }
     if idents.any {
         tests = vec!["true".to_owned()];
@@ -1022,7 +1134,10 @@ fn emit_opaque(o: &mut String, name: &str, idents: &Idents) -> Result<(), Fail> 
     if tests.is_empty() {
         return Err(format!("{name}: no tag known").into());
     }
-    let fixed = match (idents.any || idents.any_context, idents.tags.iter().next()) {
+    let fixed = match (
+        idents.any || idents.context_from.is_some(),
+        idents.tags.iter().next(),
+    ) {
         (false, Some((class, number))) if idents.tags.len() == 1 => format!(
             "Some(ber::Identifier::new(TagClass::{}, true, {number}))",
             classes[usize::from(*class)]

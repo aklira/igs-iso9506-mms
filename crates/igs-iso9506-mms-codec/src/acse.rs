@@ -41,16 +41,10 @@ pub fn encode(apdu: &ACSEApdu) -> Result<Vec<u8>, Error> {
     asn::encode_value::<ACSEApdu>(apdu)
 }
 
-/// Whether bit `bit` of a bit string is present and set; bit 0 is the leading bit.
-fn has_bit(bits: &BitString, bit: usize) -> bool {
-    let mask = 0x80u8.checked_shr((bit % 8) as u32).unwrap_or(0);
-    asn::Measure::measure(bits) > bit && bits.bytes.get(bit / 8).is_some_and(|b| b & mask != 0)
-}
-
 /// Whether a protocol version field offers version 1. An absent field means version 1 (X.227
 /// §7.1.3.2, note 3); bits of later versions are ignored (§7.1.4.1).
 pub fn offers_version1(protocol_version: Option<&BitString>) -> bool {
-    protocol_version.is_none_or(|bits| has_bit(bits, VERSION1))
+    protocol_version.is_none_or(|bits| bits.bit(VERSION1))
 }
 
 /// The protocol version with version 1 only, as a requesting ACPM writes it: its last bit is set
