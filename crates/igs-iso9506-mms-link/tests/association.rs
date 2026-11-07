@@ -441,6 +441,51 @@ fn an_unknown_application_context_is_refused_with_its_diagnostic() {
 }
 
 #[test]
+fn a_responder_accepts_the_legacy_context_and_answers_with_it() {
+    // The reference peer proposes 1.0.9506.2.3 (G13, D-027). The AARE carries the name proposed: its
+    // object identifier is 06 05 28 CA 22 02 03, and not the one of 1.0.9506.2.5.
+    let mut responder =
+        association::Association::new(Role::Responder, LinkConfig::default(), capabilities())
+            .unwrap();
+    let legacy = ApplicationContextName(ObjectIdentifier(vec![1, 0, 9506, 2, 3]));
+    let initiate = request(
+        &LinkConfig::default(),
+        &capabilities(),
+        MMS_VERSION,
+        Some(2),
+    );
+    let mms = igs_iso9506_mms_codec::mms::encode(&MMSpdu::InitiateRequestPDU(initiate)).unwrap();
+    let external = igs_iso9506_mms_codec::acse::External {
+        direct_reference: None,
+        indirect_reference: Some(3),
+        data_value_descriptor: None,
+        encoding: igs_iso9506_mms_codec::acse::Encoding::SingleAsn1Type(
+            igs_iso9506_mms_codec::schema::RawBer(mms),
+        ),
+    };
+    let information = AssociationInformation(vec![external.encode().unwrap()]);
+    let tsdu = connect_with(aarq(legacy, Some(information)));
+    let actions = responder.handle(Event::Received(tsdu));
+    assert!(actions
+        .iter()
+        .any(|action| matches!(action, Action::Indication(_))));
+    let answered = responder.handle(Event::Answer(Answer::Accept));
+    assert!(answered
+        .iter()
+        .any(|action| matches!(action, Action::Established(_))));
+    let sent: Vec<u8> = answered
+        .iter()
+        .filter_map(|action| match action {
+            Action::Send(tsdu) => Some(tsdu.clone()),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let legacy_oid = [0x06, 0x05, 0x28, 0xCA, 0x22, 0x02, 0x03];
+    assert!(sent.windows(legacy_oid.len()).any(|w| w == legacy_oid));
+}
+
+#[test]
 fn an_indication_without_an_initiate_request_is_refused() {
     let mut responder =
         association::Association::new(Role::Responder, LinkConfig::default(), capabilities())

@@ -34,6 +34,11 @@ use crate::upper::{self, Origin, ACSE_CONTEXT, MMS_ABSTRACT_SYNTAX, MMS_CONTEXT}
 /// The application context of MMS: `mms-application-context-version1` (ISO 9506-2 §A.7).
 pub const MMS_APPLICATION_CONTEXT: [u64; 5] = [1, 0, 9506, 2, 5];
 
+/// The application context name `1.0.9506.2.3`: the arc of the MMS annex module, which the reference
+/// peer of the bench proposes (`docs/capabilities.md`, G13). A responder accepts it, and answers with
+/// the name it was proposed (decision D-027). The initiator proposes [`MMS_APPLICATION_CONTEXT`] only.
+pub const LEGACY_MMS_APPLICATION_CONTEXT: [u64; 5] = [1, 0, 9506, 2, 3];
+
 /// The minor version number of ISO 9506-1 and ISO 9506-2 (ISO 9506-2 §24.11).
 pub const MMS_VERSION: i64 = 4;
 
@@ -159,6 +164,9 @@ pub struct Association {
     /// Whether the parameter CBBs proposed are taken as negotiated for the checks of outgoing PDUs,
     /// for a peer that answers services whose CBBs it did not negotiate (`docs/capabilities.md`, G8).
     lenient_parameter_cbbs: bool,
+    /// The application context name of the association: the one proposed by the initiator, as the
+    /// responder answers with it.
+    context: ApplicationContextName,
 }
 
 impl Association {
@@ -176,6 +184,7 @@ impl Association {
             upper,
             state: State::Idle,
             lenient_parameter_cbbs: false,
+            context: mms_context_name(),
         })
     }
 
@@ -293,6 +302,7 @@ impl Association {
                 Ok(information) => Some(information),
                 Err(message) => return vec![Action::Misuse(message)],
             },
+            self.context.clone(),
         ));
         let Ok(acse_bytes) = acse::encode(&aare) else {
             return vec![Action::Misuse("the AARE does not encode")];
@@ -332,6 +342,7 @@ impl Association {
             AssociateResult::REJECTED_PERMANENT,
             diagnostic,
             user_information,
+            self.context.clone(),
         ));
         let Ok(acse_bytes) = acse::encode(&aare) else {
             return vec![Action::Misuse("the AARE does not encode")];
@@ -382,9 +393,11 @@ impl Association {
         let Some(ACSEApdu::Aarq(aarq)) = user_data.as_ref().and_then(acse_of) else {
             return self.reject(1, None);
         };
-        if aarq.application_context_name != mms_context_name() {
+        let proposed = aarq.application_context_name.clone();
+        if proposed != mms_context_name() && proposed != legacy_context_name() {
             return self.reject(2, None);
         }
+        self.context = proposed;
         let Some(request) = aarq
             .user_information
             .as_ref()
@@ -696,10 +709,11 @@ fn aare(
     result: AssociateResult,
     diagnostic: AssociateSourceDiagnosticAcseServiceUser,
     user_information: Option<AssociationInformation>,
+    context: ApplicationContextName,
 ) -> AAREApdu {
     AAREApdu {
         protocol_version: Some(AAREApduProtocolVersion(acse::version1())),
-        application_context_name: mms_context_name(),
+        application_context_name: context,
         result,
         result_source_diagnostic: AssociateSourceDiagnostic::AcseServiceUser(diagnostic),
         responding_ap_title: None,
@@ -724,6 +738,10 @@ fn diagnostic_of(aare: &AAREApdu) -> i64 {
 
 fn mms_context_name() -> ApplicationContextName {
     ApplicationContextName(ObjectIdentifier(MMS_APPLICATION_CONTEXT.to_vec()))
+}
+
+fn legacy_context_name() -> ApplicationContextName {
+    ApplicationContextName(ObjectIdentifier(LEGACY_MMS_APPLICATION_CONTEXT.to_vec()))
 }
 
 /// The user information of an ACSE APDU: one EXTERNAL whose data is the MMS PDU, in the MMS
