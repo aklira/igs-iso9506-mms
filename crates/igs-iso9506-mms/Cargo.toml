@@ -23,6 +23,10 @@ tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "
 # clap: the command line of the igsmms-client binary (task T3, MIT or Apache-2.0), derive only.
 clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 
+# serde and toml: the configuration file of the igsmms-server binary (task S3, MIT or Apache-2.0).
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
 [dev-dependencies]
 # test-util: tokio::time::pause for the fake clock of the loopback tests.
 tokio = { version = "1", features = ["macros", "rt", "test-util"] }

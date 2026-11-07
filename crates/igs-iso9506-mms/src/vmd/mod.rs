@@ -138,6 +138,18 @@ pub struct Vmd {
     domains: BTreeMap<Name, Domain>,
 }
 
+impl std::fmt::Debug for Vmd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The objects are trait objects: the counts are shown, not the values.
+        f.debug_struct("Vmd")
+            .field("identity", &self.identity)
+            .field("variables", &self.variables.len())
+            .field("lists", &self.lists.len())
+            .field("domains", &self.domains.len())
+            .finish()
+    }
+}
+
 impl Vmd {
     /// An empty VMD with this identity.
     pub fn new(identity: Identity) -> Self {
