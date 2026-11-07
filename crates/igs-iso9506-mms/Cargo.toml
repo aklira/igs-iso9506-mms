@@ -26,3 +26,5 @@ clap = { version = "4", default-features = false, features = ["std", "derive", "
 [dev-dependencies]
 # test-util: tokio::time::pause for the fake clock of the loopback tests.
 tokio = { version = "1", features = ["macros", "rt", "test-util"] }
+# proptest: the property tests of the VMD model (task S1), as in the codec crate.
+proptest = { version = "1", default-features = false, features = ["std"] }
