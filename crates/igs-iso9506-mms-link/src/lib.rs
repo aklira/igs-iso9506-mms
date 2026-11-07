@@ -18,3 +18,7 @@
         clippy::arithmetic_side_effects
     )
 )]
+
+pub mod config;
+
+pub use config::{ConfigError, LinkConfig};

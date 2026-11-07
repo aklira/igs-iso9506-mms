@@ -398,7 +398,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | C7 MMS PDUs | [x] |
 | C8 Property tests | [x] |
 | C9 Fuzzing | [ ] |
-| L1 Parameters | [ ] |
+| L1 Parameters | [x] |
 | L2 COTP connection | [ ] |
 | L3 Session and presentation connection | [ ] |
 | L4 Association and Initiate | [ ] |

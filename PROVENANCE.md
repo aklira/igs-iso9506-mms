@@ -294,6 +294,52 @@ silent, to be confirmed by an observation test against other implementations.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/properties.rs`, and one regression test for each
   fix in `tests/transport.rs`, `tests/session.rs` and `tests/presentation.rs`.
 
+### D-015 — Link parameters: defaults and bounds
+
+- **Decision**: `LinkConfig` (crate `igs-iso9506-mms-link`, module `config`) holds the selectors,
+  the AP-title, the TPDU size, the timeouts and the limits proposed in the association. `validate`
+  refuses a value outside the bounds below; the first refused value is returned.
+  - Bounds:
+    - transport selector: at most 255 octets; a present selector is never empty;
+    - session selector: at most 16 octets;
+    - presentation selector: at most 16 octets;
+    - AP-title: an object identifier of at least two arcs, the first at most 2, and the second
+      below 40 when the first is below 2;
+    - outstanding requests, each way: 1 to 32 767 (an INTEGER of 16 bits, positive);
+    - nesting level: 2 to 127 (the TASE.2 minimum; an INTEGER of 8 bits, positive).
+  - Defaults:
+    - selectors and AP-title omitted;
+    - TPDU size 8192 octets;
+    - connect timeout 10 s, request timeout 30 s;
+    - 8 outstanding requests each way;
+    - nesting level 2.
+- **Reasons**:
+  - Selectors omitted: X.224 §13.3.4 a) makes the transport selector optional when the network
+    address identifies the entity; RFC 1006 connects to TCP port 102, which RFC 2126 reserves for
+    the same use, so the endpoint is known without a transport selector. The session and presentation selectors are not mandatory in their connection requests
+    (X.225 table of CN parameters; X.226 §6.2.2.3, §6.2.2.5). To be checked against the reference
+    peer in task L6; if it refuses an omitted selector, the default changes and this entry is
+    updated.
+  - TPDU size 8192: the largest size the X.224 parameter codes (§13.3.4 b), and the size that the
+    reference client of the bench proposes (task F5, observed). RFC 2126 gives a default of 65 531
+    octets, which the X.224 parameter cannot code; the proposal is therefore the largest coded
+    size, and L2 settles the size the peer confirms.
+  - Nesting level 2: the TASE.2 minimum (6-702, stack requirements). A larger proposal would claim
+    a depth that the decoders do not yet check against the negotiated value; the level is revisited
+    in task L4.
+  - Outstanding requests, timeouts: no clause gives a value (9506-2 §8.2 gives the types and the
+    names only). They are operational choices, to revisit in tasks L5 and L6.
+- **Sources**: ITU-T X.224 §13.3.4 a) and b); X.225, table of CN parameters (selectors, 8.3.1.17);
+  X.226 §6.2.2.3, §6.2.2.5, §8.2 (Presentation-selector, OCTET STRING without a bound); X.227
+  (AP-title, form 2); X.690 §8.19.4 (first two arcs); ISO 9506-2 §8.2 (types of the proposed
+  limits); 6-702 stack requirements; RFC 1006 and RFC 2126 (TCP port 102, default TPDU size),
+  read on the web; the RFC texts are not stored here.
+- **Confidence**: high for the bounds, which follow the clauses; medium for the omitted selectors
+  and the TPDU size (the bench confirms them in L6); low for the outstanding limit and the
+  timeouts, which are operational.
+- **Test**: `crates/igs-iso9506-mms-link/tests/config.rs` (14 tests: defaults, each bound at its
+  edge, and each refused value).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
