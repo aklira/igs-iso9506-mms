@@ -403,7 +403,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | L3 Session and presentation connection | [x] |
 | L4 Association and Initiate | [x] |
 | L5 Requests | [x] |
-| L6 Interop of the stack | [ ] |
+| L6 Interop of the stack | [x] |
 | T1 Transport | [x] |
 | T2 Client API | [ ] |
 | T3 `igsmms-client` binary | [ ] |

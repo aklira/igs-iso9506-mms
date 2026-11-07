@@ -14,6 +14,10 @@ services:
   ref-server:
     <<: *peer
     command: ["server_example_basic_io"]
+    # Published on the loopback only, so that the MMS stack of this repository, run on the host, can
+    # reach the reference server (task L6).
+    ports:
+      - "127.0.0.1:10102:102"
     networks:
       bench:
         ipv4_address: 172.31.102.10

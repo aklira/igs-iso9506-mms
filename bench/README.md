@@ -27,6 +27,11 @@ podman-compose build ref-server
 
 Captures stay in `captures/`, which git ignores.
 
+## Host access
+
+The reference server publishes its port 102 on `127.0.0.1:10102`, so that the stack run on the host
+can reach it (task L6). Run the scenarios with `MMS_PEER=127.0.0.1:10102`.
+
 ## Layout
 
 | Path | Content |
@@ -36,4 +41,4 @@ Captures stay in `captures/`, which git ignores.
 | `igs_bench/compose.py` | Wrapper over the compose engine |
 | `igs_bench/capture.py` | Stops `tcpdump` and returns the capture |
 | `igs_bench/tshark.py` | Decodes a capture and lists its errors |
-| `tests/` | Scenarios, one file per task |
+| `tests/` | Scenarios, one file per task (`test_l6_interop.py` drives the stack of this repository) |
