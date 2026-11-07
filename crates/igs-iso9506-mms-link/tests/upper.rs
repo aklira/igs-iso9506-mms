@@ -15,12 +15,13 @@ use std::time::Duration;
 
 use igs_iso9506_mms_codec::acse;
 use igs_iso9506_mms_codec::presentation::{
-    self, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition, Mode,
+    self, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition, Mode, Pdv, PdvValues,
+    UserData,
 };
 use igs_iso9506_mms_codec::schema::ObjectIdentifier;
 use igs_iso9506_mms_codec::session::{
-    decode_tsdu, encode_tsdu, Accept, Connect, ConnectAcceptItem, DataTransfer, Finish, GiveTokens,
-    Spdu, ABORT_PROTOCOL_ERROR, ABORT_TRANSPORT_RELEASED, ABORT_USER, PROTOCOL_VERSION_2,
+    decode_tsdu, encode_tsdu, Accept, Connect, ConnectAcceptItem, DataTransfer, Finish, Spdu,
+    ABORT_PROTOCOL_ERROR, ABORT_TRANSPORT_RELEASED, ABORT_USER, PROTOCOL_VERSION_2,
 };
 use igs_iso9506_mms_link::config::LinkConfig;
 use igs_iso9506_mms_link::transport::{self, Role};
@@ -120,12 +121,12 @@ fn default_link() -> Link {
 }
 
 fn connected(link: &mut Link) {
-    link.upper(0, Event::Connect);
-    assert!(link.log[1].contains(&Action::ConnectIndication));
-    link.upper(1, Event::Accept);
+    link.upper(0, Event::Connect(None));
+    assert!(link.log[1].contains(&Action::ConnectIndication(None)));
+    link.upper(1, Event::Accept(None));
     assert!(link.established(), "both ends are open: {:?}", link.log);
-    assert!(link.log[0].contains(&Action::Connected));
-    assert!(link.log[1].contains(&Action::Connected));
+    assert!(link.log[0].contains(&Action::Connected(None)));
+    assert!(link.log[1].contains(&Action::Connected(None)));
 }
 
 // Establishment, on both roles
@@ -136,7 +137,7 @@ fn connect_and_accept_open_both_ends() {
     connected(&mut link);
     assert_eq!(
         link.log[1][0],
-        Action::ConnectIndication,
+        Action::ConnectIndication(None),
         "the responder is asked first"
     );
 }
@@ -144,9 +145,9 @@ fn connect_and_accept_open_both_ends() {
 #[test]
 fn a_user_refusal_is_carried_by_a_refuse_with_its_context_results() {
     let mut link = default_link();
-    link.upper(0, Event::Connect);
-    link.upper(1, Event::Refuse);
-    assert!(link.log[0].contains(&Action::Refused(2)));
+    link.upper(0, Event::Connect(None));
+    link.upper(1, Event::Refuse(None));
+    assert!(link.log[0].contains(&Action::Refused(2, None)));
     assert!(link.uppers[0].is_closed() && link.uppers[1].is_closed());
     let refuse = match decode_tsdu(&link.wire[1]).unwrap().as_slice() {
         [Spdu::Refuse(refuse)] => refuse.clone(),
@@ -174,13 +175,13 @@ fn a_session_selector_that_is_not_ours_is_refused_by_the_provider() {
         ..LinkConfig::default()
     };
     let mut link = Link::new(initiator, responder);
-    link.upper(0, Event::Connect);
-    assert!(!link.log[1].contains(&Action::ConnectIndication));
+    link.upper(0, Event::Connect(None));
+    assert!(!link.log[1].contains(&Action::ConnectIndication(None)));
     assert!(
-        link.log[1].contains(&Action::Refused(129)),
+        link.log[1].contains(&Action::Refused(129, None)),
         "session selector unknown"
     );
-    assert!(link.log[0].contains(&Action::Refused(129)));
+    assert!(link.log[0].contains(&Action::Refused(129, None)));
     assert!(link.uppers[0].is_closed() && link.uppers[1].is_closed());
 }
 
@@ -195,9 +196,9 @@ fn a_presentation_selector_that_is_not_ours_is_refused_with_address_unknown() {
         ..LinkConfig::default()
     };
     let mut link = Link::new(initiator, responder);
-    link.upper(0, Event::Connect);
-    assert!(!link.log[1].contains(&Action::ConnectIndication));
-    assert!(link.log[0].contains(&Action::Refused(2)));
+    link.upper(0, Event::Connect(None));
+    assert!(!link.log[1].contains(&Action::ConnectIndication(None)));
+    assert!(link.log[0].contains(&Action::Refused(2, None)));
     let refuse = match decode_tsdu(&link.wire[1]).unwrap().as_slice() {
         [Spdu::Refuse(refuse)] => refuse.clone(),
         other => panic!("expected one REFUSE, got {other:?}"),
@@ -215,7 +216,7 @@ fn a_connect_that_gets_no_answer_is_aborted_by_the_transport_timeout() {
     let mut transport = transport::Connection::new(Role::Initiator, LinkConfig::default()).unwrap();
     let mut upper = upper::Connection::new(Role::Initiator, LinkConfig::default()).unwrap();
     let _ = transport.handle(transport::Event::Connect, T0);
-    let sent = upper.handle(Event::Connect);
+    let sent = upper.handle(Event::Connect(None));
     assert!(matches!(sent.as_slice(), [Action::Send(_)]));
     assert!(transport
         .handle(transport::Event::Tick, Duration::from_millis(9_999))
@@ -300,7 +301,7 @@ fn losing_the_transport_while_open_aborts_the_connection() {
         ..Connect::default()
     });
     let _ = upper.handle(Event::Received(encode_tsdu(&[connect]).unwrap()));
-    let _ = upper.handle(Event::Accept);
+    let _ = upper.handle(Event::Accept(None));
     assert!(upper.is_open());
     let actions = upper.handle(Event::TransportClosed(transport::Cause::Framing));
     assert_eq!(actions, vec![Action::Aborted(Origin::Transport)]);
@@ -331,21 +332,28 @@ fn an_unexpected_spdu_is_a_protocol_error_with_an_abort() {
 }
 
 #[test]
-fn data_transfer_is_refused_until_the_data_layers_come() {
+fn user_data_is_delivered_in_the_data_transfer() {
     let mut link = default_link();
     connected(&mut link);
-    // A DATA TRANSFER follows a GIVE TOKENS in one TSDU (X.225 §6.3.7, basic concatenation).
-    let data = encode_tsdu(&[
-        Spdu::GiveTokens(GiveTokens::default()),
-        Spdu::DataTransfer(DataTransfer {
-            user_information: vec![1, 2, 3],
-            ..DataTransfer::default()
-        }),
-    ])
-    .unwrap();
-    let actions = link.uppers[1].handle(Event::Received(data));
-    assert!(actions.contains(&Action::Aborted(Origin::Provider)));
-    assert!(link.uppers[1].is_closed());
+    let user_data = mms_data(&[0x02, 0x01, 0x05]);
+    link.upper(0, Event::Data(user_data.clone()));
+    assert!(link.log[1].contains(&Action::Data(user_data)));
+    assert!(link.uppers[0].is_open() && link.uppers[1].is_open());
+}
+
+#[test]
+fn a_data_transfer_without_its_give_tokens_is_a_protocol_error() {
+    let mut link = default_link();
+    connected(&mut link);
+    // A lone DATA TRANSFER is not a TSDU this layer accepts: the encoder refuses to write one.
+    assert!(encode_tsdu(&[Spdu::DataTransfer(DataTransfer::default())]).is_err());
+}
+
+#[test]
+fn data_before_the_connection_is_open_is_a_misuse() {
+    let mut initiator = upper::Connection::new(Role::Initiator, LinkConfig::default()).unwrap();
+    let actions = initiator.handle(Event::Data(mms_data(&[0x05, 0x00])));
+    assert!(matches!(actions.as_slice(), [Action::Misuse(_)]));
 }
 
 #[test]
@@ -360,11 +368,11 @@ fn garbage_is_a_protocol_error() {
 fn events_out_of_their_state_are_misuse() {
     let mut responder = upper::Connection::new(Role::Responder, LinkConfig::default()).unwrap();
     assert!(matches!(
-        responder.handle(Event::Connect).as_slice(),
+        responder.handle(Event::Connect(None)).as_slice(),
         [Action::Misuse(_)]
     ));
     assert!(matches!(
-        responder.handle(Event::Accept).as_slice(),
+        responder.handle(Event::Accept(None)).as_slice(),
         [Action::Misuse(_)]
     ));
     assert!(matches!(
@@ -373,7 +381,7 @@ fn events_out_of_their_state_are_misuse() {
     ));
     let mut initiator = upper::Connection::new(Role::Initiator, LinkConfig::default()).unwrap();
     assert!(matches!(
-        initiator.handle(Event::Accept).as_slice(),
+        initiator.handle(Event::Accept(None)).as_slice(),
         [Action::Misuse(_)]
     ));
     assert!(matches!(
@@ -390,6 +398,15 @@ fn context(id: i64, abstract_syntax: Vec<u64>, transfer: Vec<Vec<u64>>) -> Conte
         abstract_syntax: ObjectIdentifier(abstract_syntax),
         transfer_syntaxes: transfer.into_iter().map(ObjectIdentifier).collect(),
     }
+}
+
+/// User data of the MMS context, as one PDV whose value is the given BER encoding.
+fn mms_data(encoding: &[u8]) -> UserData {
+    UserData::Full(vec![Pdv {
+        transfer_syntax: None,
+        context_id: 3,
+        values: PdvValues::SingleAsn1Type(encoding.to_vec()),
+    }])
 }
 
 fn default_contexts() -> Vec<ContextDefinition> {
@@ -430,8 +447,8 @@ fn each_context_is_accepted_or_rejected_by_its_abstract_and_transfer_syntax() {
         ..Connect::default()
     });
     let indication = responder.handle(Event::Received(encode_tsdu(&[connect]).unwrap()));
-    assert_eq!(indication, vec![Action::ConnectIndication]);
-    let answer = responder.handle(Event::Accept);
+    assert_eq!(indication, vec![Action::ConnectIndication(None)]);
+    let answer = responder.handle(Event::Accept(None));
     let tsdu = match answer.first() {
         Some(Action::Send(tsdu)) => tsdu.clone(),
         other => panic!("expected the ACCEPT, got {other:?}"),

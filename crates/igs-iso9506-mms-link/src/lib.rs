@@ -19,6 +19,7 @@
     )
 )]
 
+pub mod association;
 pub mod config;
 pub mod transport;
 pub mod upper;

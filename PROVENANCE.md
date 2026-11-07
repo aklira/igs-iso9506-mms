@@ -413,20 +413,79 @@ silent, to be confirmed by an observation test against other implementations.
   - Abort: the user abort is an ABORT with the user bit and the transport-released bit, carrying an
     empty ARU PPDU. A protocol error is an ABORT with the protocol-error bit and the transport-released
     bit, without user data. An ABORT received counts as a user abort when its user bit is set.
-  - A TSDU of more than one SPDU is refused, as the basic concatenation of GIVE TOKENS and DATA
-    TRANSFER (X.225 §6.3.7) is not yet handled.
-- **Known gaps**, to close in the next tasks:
-  - DATA TRANSFER is refused as a protocol error. Data flows from task L4 (ACSE) and L5 (requests).
-  - The results of the CPA are returned to the upper layers unchecked: task L4 requires the ACSE
-    and MMS contexts to be accepted.
+  - Data transfer, added by task L4: a TSDU of GIVE TOKENS then DATA TRANSFER carries the user data
+    (X.225 §6.3.7). A DATA TRANSFER alone is a protocol error; the encoder refuses to write one.
+  - The results of the CPA are passed up unchanged; task L4 checks that the ACSE and MMS contexts
+    are accepted in the association it builds.
 - **Sources**: ITU-T X.225 §6.3.7, §8.3.1, §8.3.4, §8.3.5.10, §8.3.6, §8.3.7, §8.3.9; X.226 §6.2.2.7,
   §6.2.3, §6.2.4.9, §6.2.5.5 to §6.2.5.8; ISO 9506-2 module ISO-9506-MMS-1 for the MMS abstract
   syntax; X.690 basic-encoding for the transfer syntax.
 - **Confidence**: high for the reason codes and the provider reasons, which the clauses list; medium
   for the policy of accepting contexts; low for the identifiers 1 and 3, which are a choice.
-- **Test**: `crates/igs-iso9506-mms-link/tests/upper.rs`, 15 tests on the transport connection of
-  D-016: the connection and its acceptance, each refusal, the release, the aborts from both ends, the
-  transport lost or timed out, protocol errors, misuse, and the judgement of each context.
+- **Test**: `crates/igs-iso9506-mms-link/tests/upper.rs`, on the transport connection of D-016: the
+  connection and its acceptance, each refusal, the release, the aborts from both ends, the transport
+  lost or timed out, protocol errors, misuse, and the judgement of each context. Task L4 added the
+  user data and the data transfer, and their tests.
+
+### D-018 — The MMS application association (task L4)
+
+- **Decision**: `association::Association` (crate `igs-iso9506-mms-link`) is a sans-I/O state machine
+  that owns the presentation connection of D-017. It carries the ACSE APDUs and the MMS PDUs as the
+  user data of the presentation connection, and negotiates the Initiate.
+  - Carriage (ISO 9506-2 §A.1, §A.5, §24.1): the AARQ and AARE are the user data of the CP and CPA,
+    in the ACSE context (identifier 1). The Initiate and its response are the user information of
+    the AARQ and AARE, as an EXTERNAL whose indirect reference is the MMS context (identifier 3).
+    After the association, each MMS PDU is the user data of a DATA TRANSFER in the MMS context.
+  - Application context: `{iso standard 9506 part(2) mms-application-context-version1(5)}`
+    (ISO 9506-2 §A.7). An AARQ with another one is refused with diagnostic 2.
+  - Version: this end proposes 4, the minor version of ISO 9506-1 and ISO 9506-2 (ISO 9506-2 §24.11).
+    The negotiated version is the lower of the proposed and 4; a proposal below 1 is refused.
+  - Negotiation (ISO 9506-1 §8.2.1.1 and §8.2.1.2), by the responder:
+    - each proposed outstanding limit is reduced to this end's limit of the configuration; a result
+      of zero is refused, with class `max-services-outstanding-…-insufficient`;
+    - an absent nesting level is unlimited; the level is reduced to this end's configured level,
+      and a level below 2 is refused, class `nesting-level-insufficient`. The 2 is the TASE.2
+      minimum (IEC 60870-6-702, stack requirements). This is a choice of this implementation;
+    - the parameter CBBs are the intersection of those proposed and those served (§8.2.1.2.6);
+    - the services called are the intersection of those proposed by the calling user and those
+      this end serves (§8.2.1.1.8, §8.2.1.2.8); an empty intersection is refused, class
+      `service-CBB-insufficient`. Refusing an association that serves nothing is a choice of this
+      implementation.
+    - A negative proposal is refused with class `other`.
+  - Checks by the initiator: each negotiated value is within the proposal (versions, limits, nesting,
+    the CBBs and services as subsets); a response that is not is a protocol error, and the
+    association is aborted by the provider.
+  - Refusal: an AARE with result rejected-permanent, diagnostic 1 (no reason given) or 2
+    (application context not supported), and the Initiate-ErrorPDU of a failed negotiation as its user
+    information. It travels as the user data of a CPR, the presentation user rejection (X.226
+    §6.2.5.6). A refusal of the presentation or session provider is a `Refusal::Provider`.
+  - Answer: the responder indicates the Initiate request, then the user accepts or rejects it. An
+    accepted request is negotiated at once; a failed negotiation is refused with its error.
+  - Data: a request (confirmed, unconfirmed, cancel) is checked against what the other end serves,
+    a response against what this end serves (ISO 9506-1 §8.2.1.1.8). A received PDU the negotiation
+    does not allow is passed up as `Unsupported`, for the Reject PDU of task L5. An Initiate PDU is
+    refused within the association (ISO 9506-1 §8.2.2).
+  - Conclude (ISO 9506-2 §24.3, Annex A.1.2): the initiator sends the CONCLUDE request, then ACSE's
+    RLRQ with the normal reason, and waits for the RLRE before the session release. The responder
+    answers at once with a CONCLUDE response and a RLRE, and releases when the session release
+    arrives. This end does not reject a CONCLUDE; the Conclude-ErrorPDU path is not implemented.
+  - Abort (ISO 9506-2 §24.4): the MMS abort has no PDU of its own. It is the presentation abort
+    without user data.
+- **Known gaps**:
+  - The services and parameter CBBs served are given by the caller (`Capabilities`). The TASE.2
+    set is chosen with the client and server tasks, not here.
+  - The version-dependent PDUs (ISO 9506-2 §7, "shall not appear in minor version 1 or 2") are not
+    checked against the negotiated version.
+  - The Conclude-ErrorPDU path is not implemented (see above).
+- **Sources**: ISO 9506-1 §8.2 (Initiate service, §8.2.1, §8.2.2); ISO 9506-2 §8.2, §8.3, §24.1,
+  §24.2, §24.3, §24.4, §24.11, Annex A (§A.1, §A.5, §A.7); ITU-T X.227 (AARQ, AARE, RLRQ, RLRE);
+  X.226 §6.2.5.6; IEC 60870-6-702 stack requirements.
+- **Confidence**: high for the carriage and the negotiation rules, which the clauses state; medium for
+  the refusal of a nesting level below 2 and of an empty service set, which are choices; medium for the
+  immediate answer to a CONCLUDE.
+- **Test**: `crates/igs-iso9506-mms-link/tests/association.rs`, 19 tests on both roles: the negotiation
+  of each value, the refusals with their classes, the services checked on send and receive, the
+  conclude order of Annex A, the abort, and the time-out of a request with no answer.
 
 ## Third-party code and sources
 

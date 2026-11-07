@@ -2,26 +2,27 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! The session and presentation connection (task L3): CONNECT, ACCEPT and REFUSE, FINISH and
-//! DISCONNECT, and ABORT, over a transport connection of class 0 (ITU-T X.225 §7, §8; X.226 §6,
-//! §8).
+//! The session and presentation connection (tasks L3 and L4): CONNECT, ACCEPT and REFUSE, FINISH
+//! and DISCONNECT, ABORT, and the data transfer, over a transport connection of class 0 (ITU-T
+//! X.225 §6.3.7, §7, §8; X.226 §6, §8).
 //!
 //! The connection performs no I/O, as the transport connection of task L2 does. It takes
 //! [`Event`]s and returns [`Action`]s; the TSDUs it sends go to the transport connection, and the
-//! TSDUs that the transport connection delivers come in as [`Event::Received`]. Its user data is
-//! empty here: the ACSE APDUs that carry the association come with task L4. Decisions are recorded
-//! as D-017 in `PROVENANCE.md`.
+//! TSDUs that the transport connection delivers come in as [`Event::Received`]. The user data of
+//! the CP, CPA and CPR, and of the data transfer, is a [`UserData`] of the presentation layer; the
+//! ACSE APDUs and the MMS PDUs of task L4 are its values. Decisions are recorded as D-017 and D-018
+//! in `PROVENANCE.md`.
 
 use igs_iso9506_mms_codec::acse;
 use igs_iso9506_mms_codec::presentation::{
     self, AbortUser, AcceptNormal, ConnectAccept, ConnectNormal, ConnectRefuse, ContextDefinition,
-    ContextResult, Mode,
+    ContextResult, Encoding, Mode, UserData,
 };
 use igs_iso9506_mms_codec::schema::ObjectIdentifier;
 use igs_iso9506_mms_codec::session::{
-    decode_tsdu, encode_tsdu, Abort, Accept, Connect, ConnectAcceptItem, Disconnect, Finish,
-    Refuse, Spdu, ABORT_PROTOCOL_ERROR, ABORT_TRANSPORT_RELEASED, ABORT_USER, FU_DUPLEX,
-    PROTOCOL_VERSION_2,
+    decode_tsdu, encode_tsdu, Abort, Accept, Connect, ConnectAcceptItem, DataTransfer, Disconnect,
+    Finish, GiveTokens, Refuse, Spdu, ABORT_PROTOCOL_ERROR, ABORT_TRANSPORT_RELEASED, ABORT_USER,
+    FU_DUPLEX, PROTOCOL_VERSION_2,
 };
 
 use crate::config::{ConfigError, LinkConfig};
@@ -30,7 +31,8 @@ use crate::transport::{Cause as TransportCause, Role};
 /// The abstract syntax of MMS: `mms-abstract-syntax-version1` of ISO 9506-2, module ISO-9506-MMS-1.
 pub const MMS_ABSTRACT_SYNTAX: [u64; 5] = [1, 0, 9506, 2, 1];
 
-/// The basic encoding of ASN.1, the transfer syntax of both abstract syntaxes (X.690, basic-encoding).
+/// The basic encoding of ASN.1, the transfer syntax of both abstract syntaxes (X.690,
+/// basic-encoding).
 pub const BASIC_ENCODING: [u64; 3] = [2, 1, 1];
 
 /// Presentation context identifier of ACSE. Identifiers are odd integers (X.226 §6.2.2.7).
@@ -41,7 +43,7 @@ pub const MMS_CONTEXT: i64 = 3;
 
 /// Session reason code of a refusal by the called SS-user, whose user data is the CPR (X.225
 /// §8.3.5.10, code 2).
-const REFUSED_BY_USER: u8 = 2;
+pub const REFUSED_BY_USER: u8 = 2;
 
 /// Session reason code 128 + 1: the session selector is unknown (X.225 §8.3.5.10).
 const SESSION_SELECTOR_UNKNOWN: u8 = 129;
@@ -55,7 +57,7 @@ const REASON_NOT_SPECIFIED: i64 = 0;
 /// The origin of an abort.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origin {
-    /// The user of the other end aborted (the ABORT SPDU says so).
+    /// The user of the other end aborted.
     User,
     /// The provider aborted, or a protocol error was found.
     Provider,
@@ -66,16 +68,20 @@ pub enum Origin {
 /// An input of the connection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
-    /// Initiator: request the connection (CONNECT).
-    Connect,
-    /// Responder: accept the connection that was indicated (ACCEPT).
-    Accept,
-    /// Responder: refuse the connection that was indicated (REFUSE).
-    Refuse,
+    /// Initiator: request the connection, with the user data of the CP.
+    Connect(Option<UserData>),
+    /// Responder: accept the connection that was indicated, with the user data of the CPA.
+    Accept(Option<UserData>),
+    /// Responder: refuse the connection that was indicated, with the user data of the CPR.
+    Refuse(Option<UserData>),
+    /// Send user data in the data transfer; its PDVs name the presentation contexts.
+    Data(UserData),
     /// Release the connection in an orderly way (FINISH, then DISCONNECT).
     Release,
-    /// Abort the connection (ABORT, with the user).
+    /// Abort the connection, with the user (the MMS abort has no PDU of its own).
     Abort,
+    /// Abort the connection with a protocol error found above: an ABORT that names the provider.
+    ProviderAbort,
     /// A TSDU delivered by the transport connection.
     Received(Vec<u8>),
     /// The transport connection is closed, for the cause given.
@@ -87,13 +93,16 @@ pub enum Event {
 pub enum Action {
     /// A TSDU for the transport connection.
     Send(Vec<u8>),
-    /// Responder: a connection request is indicated; answer with [`Event::Accept`] or
-    /// [`Event::Refuse`].
-    ConnectIndication,
-    /// The session and presentation connection is established.
-    Connected,
-    /// The connection request is refused, with this session reason code.
-    Refused(u8),
+    /// Responder: a connection request is indicated, with the user data of its CP. Answer with
+    /// [`Event::Accept`] or [`Event::Refuse`].
+    ConnectIndication(Option<UserData>),
+    /// The session and presentation connection is established, with the user data of the CPA.
+    Connected(Option<UserData>),
+    /// The connection request is refused, with this session reason code, and the user data of the
+    /// CPR when it carries some.
+    Refused(u8, Option<UserData>),
+    /// User data received in the data transfer.
+    Data(UserData),
     /// The orderly release is complete.
     Released,
     /// The connection is aborted.
@@ -149,17 +158,19 @@ impl Connection {
     /// Takes an event, and returns the actions it causes.
     pub fn handle(&mut self, event: Event) -> Vec<Action> {
         match event {
-            Event::Connect => self.connect(),
-            Event::Accept => self.answer(true),
-            Event::Refuse => self.answer(false),
+            Event::Connect(user_data) => self.connect(user_data),
+            Event::Accept(user_data) => self.answer(true, user_data),
+            Event::Refuse(user_data) => self.answer(false, user_data),
+            Event::Data(user_data) => self.data_out(&user_data),
             Event::Release => self.release(),
             Event::Abort => self.abort(),
+            Event::ProviderAbort => self.protocol_error(),
             Event::Received(bytes) => self.received(&bytes),
             Event::TransportClosed(cause) => self.transport_closed(cause),
         }
     }
 
-    fn connect(&mut self) -> Vec<Action> {
+    fn connect(&mut self, user_data: Option<UserData>) -> Vec<Action> {
         if self.role != Role::Initiator || self.state != State::Idle {
             return vec![Action::Misuse("connect needs an idle initiator")];
         }
@@ -171,15 +182,19 @@ impl Connection {
                 calling_selector: self.config.calling_psap.clone(),
                 called_selector: self.config.called_psap.clone(),
                 context_definitions: Some(proposed_contexts()),
+                user_data,
                 ..ConnectNormal::default()
             }),
+        };
+        let Ok(cp) = presentation::encode_connect(&connect, &[]) else {
+            return vec![Action::Misuse("the CP PPDU does not encode")];
         };
         let spdu = Spdu::Connect(Connect {
             item: Some(item()),
             session_user_requirements: Some(FU_DUPLEX),
             calling_selector: self.config.calling_ssap.clone(),
             called_selector: self.config.called_ssap.clone(),
-            user_data: presentation::encode_connect(&connect, &[]).ok(),
+            user_data: Some(cp),
             ..Connect::default()
         });
         match send(&[spdu]) {
@@ -191,35 +206,39 @@ impl Connection {
         }
     }
 
-    /// Responder: ACCEPT, or REFUSE with the CPR that carries the refusal of each context.
-    fn answer(&mut self, accepted: bool) -> Vec<Action> {
+    /// Responder: ACCEPT with the user data of the CPA, or REFUSE with a CPR that gives each
+    /// context a user rejection and carries the user data.
+    fn answer(&mut self, accepted: bool, user_data: Option<UserData>) -> Vec<Action> {
         let State::Indicated(contexts) = self.state.clone() else {
             return vec![Action::Misuse(
                 "accept or refuse needs an indicated connection",
             )];
         };
         if accepted {
-            let results = contexts.iter().map(judge).collect();
             let cpa = ConnectAccept {
                 mode: Mode::Normal,
                 x410_parameters: None,
                 normal: Some(AcceptNormal {
                     responding_selector: self.config.called_psap.clone(),
-                    context_results: Some(results),
+                    context_results: Some(contexts.iter().map(judge).collect()),
+                    user_data: user_data.clone(),
                     ..AcceptNormal::default()
                 }),
+            };
+            let Ok(cpa_bytes) = cpa.encode() else {
+                return vec![Action::Misuse("the CPA does not encode")];
             };
             let spdu = Spdu::Accept(Accept {
                 item: Some(item()),
                 session_user_requirements: Some(FU_DUPLEX),
                 responding_selector: self.config.called_ssap.clone(),
-                user_data: cpa.encode().ok(),
+                user_data: Some(cpa_bytes),
                 ..Accept::default()
             });
             match send(&[spdu]) {
                 Ok(tsdu) => {
                     self.state = State::Open;
-                    vec![Action::Send(tsdu), Action::Connected]
+                    vec![Action::Send(tsdu), Action::Connected(user_data)]
                 }
                 Err(message) => vec![Action::Misuse(message)],
             }
@@ -235,30 +254,62 @@ impl Connection {
             let cpr = ConnectRefuse {
                 responding_selector: self.config.called_psap.clone(),
                 context_results: Some(results),
+                user_data: user_data.clone(),
                 ..ConnectRefuse::default()
             };
-            let Ok(cpr_bytes) = cpr.encode() else {
-                return vec![Action::Misuse("the CPR does not encode")];
-            };
-            let mut reason = vec![REFUSED_BY_USER];
-            reason.extend(cpr_bytes);
-            let spdu = Spdu::Refuse(Refuse {
-                transport_disconnect: Some(TRANSPORT_RELEASED),
-                reason: Some(reason),
-                ..Refuse::default()
-            });
-            self.refuse_with(&spdu, REFUSED_BY_USER)
+            match self.refusal_by_user(&cpr) {
+                Ok(spdu) => self.refuse_with(&spdu, REFUSED_BY_USER, user_data),
+                Err(message) => vec![Action::Misuse(message)],
+            }
         }
     }
 
+    /// The REFUSE that carries a CPR: reason 2, then the CPR.
+    fn refusal_by_user(&self, cpr: &ConnectRefuse) -> Result<Spdu, &'static str> {
+        let cpr_bytes = cpr.encode().map_err(|_| "the CPR does not encode")?;
+        let mut reason = vec![REFUSED_BY_USER];
+        reason.extend(cpr_bytes);
+        Ok(Spdu::Refuse(Refuse {
+            transport_disconnect: Some(TRANSPORT_RELEASED),
+            reason: Some(reason),
+            ..Refuse::default()
+        }))
+    }
+
     /// Sends a REFUSE and closes: the transport connection is released with it.
-    fn refuse_with(&mut self, spdu: &Spdu, code: u8) -> Vec<Action> {
-        let outcome = match send(std::slice::from_ref(spdu)) {
-            Ok(tsdu) => Action::Send(tsdu),
-            Err(message) => return vec![Action::Misuse(message)],
+    fn refuse_with(&mut self, spdu: &Spdu, code: u8, user_data: Option<UserData>) -> Vec<Action> {
+        match send(std::slice::from_ref(spdu)) {
+            Ok(tsdu) => {
+                self.state = State::Closed;
+                vec![
+                    Action::Send(tsdu),
+                    Action::Refused(code, user_data),
+                    Action::ReleaseTransport,
+                ]
+            }
+            Err(message) => vec![Action::Misuse(message)],
+        }
+    }
+
+    fn data_out(&mut self, user_data: &UserData) -> Vec<Action> {
+        if self.state != State::Open {
+            return vec![Action::Misuse("data needs an open connection")];
+        }
+        let Ok(bytes) = user_data.encode_data() else {
+            return vec![Action::Misuse("the user data does not encode")];
         };
-        self.state = State::Closed;
-        vec![outcome, Action::Refused(code), Action::ReleaseTransport]
+        // A DATA TRANSFER follows a GIVE TOKENS in one TSDU (X.225 §6.3.7, basic concatenation).
+        let spdus = [
+            Spdu::GiveTokens(GiveTokens::default()),
+            Spdu::DataTransfer(DataTransfer {
+                user_information: bytes,
+                ..DataTransfer::default()
+            }),
+        ];
+        match send(&spdus) {
+            Ok(tsdu) => vec![Action::Send(tsdu)],
+            Err(message) => vec![Action::Misuse(message)],
+        }
     }
 
     fn release(&mut self) -> Vec<Action> {
@@ -289,13 +340,15 @@ impl Connection {
             user_data: user_abort.encode().ok(),
             ..Abort::default()
         });
-        self.state = State::Closed;
         match send(&[spdu]) {
-            Ok(tsdu) => vec![
-                Action::Send(tsdu),
-                Action::Aborted(Origin::User),
-                Action::ReleaseTransport,
-            ],
+            Ok(tsdu) => {
+                self.state = State::Closed;
+                vec![
+                    Action::Send(tsdu),
+                    Action::Aborted(Origin::User),
+                    Action::ReleaseTransport,
+                ]
+            }
             Err(message) => vec![Action::Misuse(message)],
         }
     }
@@ -308,28 +361,30 @@ impl Connection {
             Ok(spdus) => spdus,
             Err(_) => return self.protocol_error(),
         };
-        // One SPDU per TSDU at this layer; the concatenations come with the data transfer.
-        let [spdu] = spdus.as_slice() else {
+        match spdus.as_slice() {
+            [Spdu::GiveTokens(_), Spdu::DataTransfer(data)] => self.data_in(&data.user_information),
+            [spdu] => self.single(spdu.clone()),
+            _ => self.protocol_error(),
+        }
+    }
+
+    fn data_in(&mut self, bytes: &[u8]) -> Vec<Action> {
+        if !matches!(self.state, State::Open | State::Releasing) {
             return self.protocol_error();
-        };
+        }
+        match UserData::decode_data(bytes, Encoding::Full) {
+            Ok(user_data) => vec![Action::Data(user_data)],
+            Err(_) => self.protocol_error(),
+        }
+    }
+
+    /// One SPDU of a TSDU, dispatched on the state.
+    fn single(&mut self, spdu: Spdu) -> Vec<Action> {
         let state = self.state.clone();
         match (state, self.role, spdu) {
-            (State::Idle, Role::Responder, Spdu::Connect(connect)) => {
-                let connect = connect.clone();
-                self.indicate(&connect)
-            }
-            (State::Connecting, Role::Initiator, Spdu::Accept(_)) => {
-                self.state = State::Open;
-                vec![Action::Connected]
-            }
-            (State::Connecting, Role::Initiator, Spdu::Refuse(refuse)) => {
-                let code = refuse.reason.as_ref().and_then(|r| r.first()).copied();
-                self.state = State::Closed;
-                vec![
-                    Action::Refused(code.unwrap_or(REFUSED_BY_USER)),
-                    Action::ReleaseTransport,
-                ]
-            }
+            (State::Idle, Role::Responder, Spdu::Connect(connect)) => self.indicate(&connect),
+            (State::Connecting, Role::Initiator, Spdu::Accept(accept)) => self.confirmed(&accept),
+            (State::Connecting, Role::Initiator, Spdu::Refuse(refuse)) => self.refused(&refuse),
             (
                 State::Open | State::Releasing | State::Connecting | State::Indicated(_),
                 _,
@@ -344,7 +399,7 @@ impl Connection {
                 vec![Action::Aborted(origin), Action::ReleaseTransport]
             }
             (State::Open | State::Releasing, _, Spdu::Finish(_)) => {
-                // The DISCONNECT answers the FINISH at once; this layer has no user to wait for.
+                // The DISCONNECT answers the FINISH at once: no user is waiting at this layer.
                 let disconnect = Spdu::Disconnect(Disconnect::default());
                 self.state = State::Closed;
                 match send(&[disconnect]) {
@@ -363,6 +418,41 @@ impl Connection {
             (State::Open, _, Spdu::GiveTokens(_)) => Vec::new(),
             _ => self.protocol_error(),
         }
+    }
+
+    /// Initiator: the ACCEPT carries the CPA; the connection is open, with its user data.
+    fn confirmed(&mut self, accept: &Accept) -> Vec<Action> {
+        let Some(bytes) = accept.user_data.as_deref() else {
+            return self.protocol_error();
+        };
+        let user_data = match ConnectAccept::decode(bytes) {
+            Ok(ConnectAccept {
+                mode: Mode::Normal,
+                normal: Some(normal),
+                ..
+            }) => normal.user_data,
+            _ => return self.protocol_error(),
+        };
+        self.state = State::Open;
+        vec![Action::Connected(user_data)]
+    }
+
+    /// Initiator: a REFUSE; with reason 2 it carries a CPR, whose user data is passed up.
+    fn refused(&mut self, refuse: &Refuse) -> Vec<Action> {
+        let reason = refuse.reason.clone().unwrap_or_default();
+        let (code, rest) = match reason.split_first() {
+            Some((&code, rest)) => (code, rest),
+            None => (REFUSED_BY_USER, &[][..]),
+        };
+        let user_data = if code == REFUSED_BY_USER && !rest.is_empty() {
+            ConnectRefuse::decode(rest)
+                .ok()
+                .and_then(|cpr| cpr.user_data)
+        } else {
+            None
+        };
+        self.state = State::Closed;
+        vec![Action::Refused(code, user_data), Action::ReleaseTransport]
     }
 
     /// Responder: checks the CONNECT against the configured addresses, then indicates it.
@@ -384,7 +474,7 @@ impl Connection {
                 reason: Some(vec![SESSION_SELECTOR_UNKNOWN]),
                 ..Refuse::default()
             });
-            return self.refuse_with(&refusal, SESSION_SELECTOR_UNKNOWN);
+            return self.refuse_with(&refusal, SESSION_SELECTOR_UNKNOWN, None);
         }
         let Some(normal) = cp.normal.as_ref().filter(|_| cp.mode == Mode::Normal) else {
             return self.refuse_by_presentation(REASON_NOT_SPECIFIED);
@@ -398,28 +488,22 @@ impl Connection {
             return self.refuse_by_presentation(PRESENTATION_ADDRESS_UNKNOWN);
         }
         let contexts = normal.context_definitions.clone().unwrap_or_default();
+        let user_data = normal.user_data.clone();
         self.state = State::Indicated(contexts);
-        vec![Action::ConnectIndication]
+        vec![Action::ConnectIndication(user_data)]
     }
 
-    /// Responder: refuses by the presentation provider, with a CPR carried by a REFUSE.
+    /// Responder: refuses by the presentation provider, with a CPR that gives its reason.
     fn refuse_by_presentation(&mut self, provider_reason: i64) -> Vec<Action> {
         let cpr = ConnectRefuse {
             responding_selector: self.config.called_psap.clone(),
             provider_reason: Some(provider_reason),
             ..ConnectRefuse::default()
         };
-        let Ok(cpr_bytes) = cpr.encode() else {
-            return vec![Action::Misuse("the CPR does not encode")];
-        };
-        let mut reason = vec![REFUSED_BY_USER];
-        reason.extend(cpr_bytes);
-        let refusal = Spdu::Refuse(Refuse {
-            transport_disconnect: Some(TRANSPORT_RELEASED),
-            reason: Some(reason),
-            ..Refuse::default()
-        });
-        self.refuse_with(&refusal, REFUSED_BY_USER)
+        match self.refusal_by_user(&cpr) {
+            Ok(spdu) => self.refuse_with(&spdu, REFUSED_BY_USER, None),
+            Err(message) => vec![Action::Misuse(message)],
+        }
     }
 
     fn transport_closed(&mut self, _cause: TransportCause) -> Vec<Action> {
@@ -480,7 +564,7 @@ fn proposed_contexts() -> Vec<ContextDefinition> {
 }
 
 /// The answer to a proposed context: accepted when this end supports its abstract syntax (ACSE or
-/// MMS) and the basic encoding; otherwise a provider rejection with its reason (X.226 §6.2.4).
+/// MMS) and the basic encoding; otherwise a provider rejection with its reason (X.226 §6.2.4.9).
 fn judge(context: &ContextDefinition) -> ContextResult {
     let supported = context.abstract_syntax.0 == acse::ABSTRACT_SYNTAX
         || context.abstract_syntax.0 == MMS_ABSTRACT_SYNTAX;
