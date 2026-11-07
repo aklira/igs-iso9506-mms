@@ -147,6 +147,21 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/session.rs`.
 
+### D-010 — Presentation PPDUs, written by hand on the BER layer
+
+- **Decision**: CP, CPC, CPA, CPR, ARU and ARP are coded by hand on the BER layer of task C1, not
+  generated: one small module, needed before the generator has decoding (tasks C5 to C7). Normal
+  mode is decoded; X.410-1984 mode, outside the profile, is kept as raw BER. As §8.5 requires, a
+  CP PPDU ignores undefined elements and unnamed bits, while the other PPDUs refuse them, as they
+  refuse numbers with no name. The components of a SET are read in any order and written in tag
+  order. User data is decoded in both encodings: simple, which the profile requires (IEC
+  60870-6-702 §6.4), and full, which the bench peers use. The contents of a single-ASN1-type PDV
+  must be exactly one encoding; they are kept as octets for ACSE and MMS to decode.
+- **Sources**: ITU-T X.226 §8.2 to §8.5; IEC 60870-6-702 §6.4, table A.60. Observation: the CP,
+  CPA and data user data of the bench peers decode and re-encode octet for octet.
+- **Confidence**: high.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/presentation.rs`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
