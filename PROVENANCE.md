@@ -116,6 +116,20 @@ silent, to be confirmed by an observation test against other implementations.
   some peers might send them. To check on the bench (tasks L6, T4, S4).
 - **Test**: `crates/igs-iso9506-mms-codec/tests/ber.rs`.
 
+### D-008 — The TPDU decoder checks structure, the connection checks class 0
+
+- **Decision**: decoding accepts in a CR or CC TPDU what class 0 does not allow but a peer sends:
+  TPDU sizes of 4096 and 8192 octets, other classes, user data (RFC 1006 allows it for testing),
+  a CR TPDU over 128 octets. The connection of task L2 decides what to accept. Decoding refuses
+  what breaks the structure: a reserved length indicator, a header that does not fit, a parameter
+  running past the header, a TPDU type outside class 0, a DT TPDU with a variable part. Each
+  refusal carries the ER reject cause and the offset of the octet in fault (X.224 §13.12). The
+  reserved octet of the TPKT header is ignored on receipt and written as zero.
+- **Sources**: ITU-T X.224 §13.2 to §13.5, §13.7, §13.12; RFC 1006 §6. Observation: the reference
+  client of the bench proposes 8192 octets and the reference server confirms it (task F5).
+- **Confidence**: high.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/transport.rs`.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
