@@ -725,6 +725,37 @@ silent, to be confirmed by an observation test against other implementations.
   `tests/vmd_properties.rs` (identifier lengths, integer and unsigned bounds, sizes, and the model against a
   reference model over random sequences of operations).
 
+### D-026 — The server: one model task, the associations, the reports (task S2)
+
+- **Decision**: `igs_iso9506_mms::Server` listens on TCP and runs one association per connection. The
+  services run on one task that owns the model (`server/mod.rs`, `model_task`): an association sends each
+  indicated request to it over a bounded channel and waits for the answer. The services therefore run one at
+  a time, in arrival order. The associations are the responder side of the link layer
+  (`Requests::new(Role::Responder)`), which checks the CBBs of every PDU (ISO 9506-2 §8) and answers the
+  requests it does not serve with a Reject PDU.
+- **Services** (`server/service.rs`): Identify; GetNameList (classes named variable, named variable list and
+  domain; pages of 64 names with `moreFollows`); Read (named variables and the members of a list, with a
+  failure per item); Write (named variables and list members; a value of another type is refused per item
+  with type-inconsistent; a write whose items and data differ in number is a service error); GetVariableAccessAttributes
+  (a name; an address is refused); DefineNamedVariableList (named members, no alternate access);
+  GetNamedVariableListAttributes; DeleteNamedVariableList (the named lists, the lists of a domain, or the
+  VMD's lists; the matched lists are the existing ones, and each is deleted).
+- **Capabilities advertised**: the in-scope services, and the parameter CBBs the model supports: `str1`,
+  `str2`, `vnam`, `vlis`. The others are not advertised, so a request that uses them is refused by the CBB check.
+- **Reports**: `Server::publish` sends an unconfirmed PDU to every open association. There is no reporting
+  control block yet (not in the model, so not in S2): a report goes to every client. A slow association
+  misses reports (the broadcast drops the oldest, `REPORT_CAPACITY`).
+- **Limits**: `max_associations` (default 64) closes the connections beyond it at accept.
+- **Shutdown**: `Server::shutdown` stops the listener and ends the associations. Dropping the server does the same.
+- **Sources**: ISO 9506-2 §7 (services), §14.6 to §14.14 (variable access and lists), §8 (the CBBs of each
+  PDU), §6 (Reject). The model's rules are those of D-025.
+- **Confidence**: high for the services, which the client's tests and the bench (T4) exercise against the
+  same definitions; medium for the reports, which are a simplification until the reporting control blocks
+  exist; medium for the write of a mismatched count, which the standard does not state in these terms.
+- **Tests**: `tests/server.rs`, 15 integration tests with the client of this repository over TCP on the
+  loopback: each service in scope, the paging, the errors, a report, five clients at once, the association
+  limit, and the shutdown.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

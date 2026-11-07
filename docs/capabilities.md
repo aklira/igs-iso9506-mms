@@ -14,6 +14,38 @@ criterion is fixed, or recorded here.
 | Abort by the user | Works; the peer closes the stream |
 | Conclude: CONCLUDE request, CONCLUDE response | Works |
 
+## Server (task S2)
+
+Served by `igs_iso9506_mms::Server` (D-026), checked by `crates/igs-iso9506-mms/tests/server.rs` with this
+repository's client over TCP:
+
+| Service in scope | Test |
+| --- | --- |
+| Identify | `identify_is_answered_with_the_identity_of_the_server` |
+| GetNameList (domains; named variables, paged; a domain's variables) | `get_name_list_*` (three tests) |
+| Read (named variables, a structure, a list, a missing name) | `read_returns_the_value_and_fails_per_item` |
+| Write (accepted, read back; read-only and wrong type refused) | `write_*` (two tests) |
+| GetVariableAccessAttributes | `get_variable_access_attributes_returns_the_type` |
+| DefineNamedVariableList, GetNamedVariableListAttributes, DeleteNamedVariableList | `define_get_and_delete_*`, `a_list_of_a_domain_*` |
+| Definition errors (object exists, missing member) | `a_definition_that_exists_*` |
+| informationReport (unconfirmed, sent by the server) | `an_unconfirmed_report_reaches_the_associations` |
+| Several associations; the association limit; shutdown | `several_clients_*`, `a_connection_beyond_*`, `shutdown_*` |
+
+Not covered by an integration test: the Reject PDU that the server sends for a request it does not serve.
+A conforming client refuses such a request before it sends it, so the path is reached only from a peer that
+breaks the negotiation. The codec's CBB tests cover the refusal itself (`crates/igs-iso9506-mms-codec/tests`).
+
+Gaps of the server:
+
+- **Reports go to every open association.** There is no reporting control block in the model yet: a report
+  is not addressed to the clients that enabled it.
+- **One task serves all the associations.** The services run one at a time (D-026). The load test with 50
+  clients is task S4.
+- **No access control.** The model's read and write permissions are per variable only (ISO 9506-2 access
+  control lists are not modelled).
+- **Addresses and alternate access are refused**, with object-access-unsupported per item in reads and writes,
+  and with a service error in attribute requests.
+
 ## Server model: the VMD (task S1)
 
 The model of the VMD in `igs_iso9506_mms::vmd` (D-025). Held: domains, named variables at the VMD and
