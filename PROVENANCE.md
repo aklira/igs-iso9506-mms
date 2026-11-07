@@ -651,6 +651,41 @@ silent, to be confirmed by an observation test against other implementations.
   a value above the proposal refused), and the binary's own unit tests (the command line is valid, value
   parsing, the display of data, the domains of names).
 
+### D-023 — An unconfirmed PDU is checked against the end that sends it (task T4)
+
+- **Decision**: the CBB check of a PDU names the end that serves it. A request is served by the end that
+  receives it; a response, and an unconfirmed PDU such as the information report, by the end that sends
+  it. An incoming report is therefore checked against the peer's view (its negotiated CBBs, or the
+  proposed ones with the lenient option), and an outgoing one against this end's.
+- **Why**: the matrix of T4 found that the reference server's report (`variableListName`, which needs the
+  `vlis` CBB) was rejected with `unrecognized-service`. The check used this end's view for every unconfirmed
+  PDU, so the server's CBBs were never consulted for its reports. The rule now follows the sender.
+- **Sources**: ISO 9506-2 §8.2 (services and CBBs of the information report), ISO 9506-1 §8.2.1.1.8 for
+  the services each end provides. The reference transcript of `docs/ai-log/T4.md`.
+- **Confidence**: high for the principle (the report is a service of the server); medium for the
+  reading that the `services` bit of an unconfirmed service is the sender's, which the reference server
+  supports (its `servicesSupportedCalled` sets `informationReport`).
+- **Test**: `crates/igs-iso9506-mms-link/src/association.rs` (the unit tests `an_incoming_report_is_checked_against_the_servers_cbbs` and
+  `a_request_is_checked_against_the_end_that_serves_it`), and
+  `crates/igs-iso9506-mms-link/tests/requests.rs` (`an_unconfirmed_service_the_peer_does_not_serve_is_not_sent`,
+  now sent by the responder).
+
+### D-024 — The client matrix: Rust scenarios, checked by the bench (task T4)
+
+- **Decision**: one Rust scenario per row of the matrix, in `crates/igs-iso9506-mms/tests/interop_matrix.rs`,
+  driving the client API with the lenient option where the reference server needs it (G8) and the
+  conformant default where the row shows the refusal. `bench/tests/test_t4_client_matrix.py` starts the
+  reference server and a capture, runs the scenarios, and checks the capture in tshark: every confirmed
+  service in scope, and the information report, on the wire, with no malformed frame.
+- **Why**: the scenarios need the client API (the `define`, `get` and `delete` of named variable lists have
+  no command of the CLI), and tshark is the independent decoder of the bench.
+- **Scope of the matrix**: the nine services in scope. The reference server is the only peer; the
+  stack as server (S4) and the reverse direction (G2) are not in T4.
+- **Recorded gaps**: `docs/capabilities.md`, G8, G9, G12 (domain-scope lists refused by the reference
+  server), G1 (release unconfirmed).
+- **Confidence**: high for the observations, which are the captured traffic.
+- **Test**: the matrix itself, with the bench test above.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

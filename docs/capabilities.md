@@ -14,6 +14,32 @@ criterion is fixed, or recorded here.
 | Abort by the user | Works; the peer closes the stream |
 | Conclude: CONCLUDE request, CONCLUDE response | Works |
 
+## Client matrix against the reference server (task T4)
+
+The scenarios are `crates/igs-iso9506-mms/tests/interop_matrix.rs`, run by
+`bench/tests/test_t4_client_matrix.py`: one association per row, the capture decoded by tshark. The
+conformant rows show the refusal that the standard requires; the lenient rows use
+`--lenient-parameter-cbbs` (G8). The service tags are those of the capture.
+
+| Service in scope | Mode | Result |
+| --- | --- | --- |
+| Identify (2) | conformant | Works: vendor `MZ` |
+| GetNameList, domains | conformant | Works: `simpleIOGenericIO` |
+| GetNameList, named variables | conformant | Refused locally (G8) |
+| GetNameList, named variables | lenient | The connection ends (G9) |
+| GetNameList, named variable lists | lenient | Works: `LLN0$Events`, `LLN0$Events2`, `LLN0$Measurements` |
+| Read (4) | conformant | Refused locally (G8) |
+| Read (4) | lenient | Works: a floating-point value |
+| Write (5) | lenient | Works: written, and read back in the same association |
+| GetVariableAccessAttributes (6) | lenient | Works: the type of a floating-point variable |
+| DefineNamedVariableList (11) | lenient, VMD scope | Works |
+| DefineNamedVariableList (11) | lenient, domain scope | Refused by the peer, `object-non-existent` (G12) |
+| GetNamedVariableListAttributes (12) | lenient | Works: the two members of the list |
+| DeleteNamedVariableList (13) | lenient | Works: one list deleted |
+| informationReport (unconfirmed 0) | lenient | Works: after a general interrogation, the report arrives (fixed by D-023) |
+
+Identifiers of the scenarios are at most 32 characters, so that G9 does not apply to them.
+
 ## Gaps found by the command line client (task T3)
 
 The bench transcript of the client is in `docs/ai-log/T3.md`. The reference server, when the command
@@ -50,6 +76,17 @@ line is used with `--lenient-parameter-cbbs` for the variable services:
   Data choice of the profile's edition does not define. The stack keeps it raw, as an unsupported
   alternative (decision D-004).
 
+- **G12, list scope.** The reference server refuses a named variable list whose name is in the domain
+  (`DefineNamedVariableList` with a domain-specific list name), with `object-non-existent`; two members
+  tried, a floating-point and a boolean variable, both refused. A list at the VMD scope is accepted. The stack sends what the standard describes; the
+  refusal comes from the peer. Recorded by the matrix of task T4; the domain scope is not used by the
+  scenarios.
+- **Fixed in T4: unconfirmed PDUs checked against their sender (D-023).** The reference server's
+  information report uses `variableListName`, which needs the `vlis` CBB it did not negotiate. It was
+  refused as `unrecognized-service`, because the check used this end's view for every unconfirmed PDU.
+  An incoming report is now checked against the peer's view, as the standard's negotiation requires: under
+  the conformant default it stays refused (G8); with the lenient option it is delivered.
+
 - **G1, release by ACSE not answered by the peer.** After the CONCLUDE response, the peer does not
   answer the ACSE release (RLRQ): no RLRE, with or without the normal reason, in 3 seconds. The stack
   waits for the RLRE, as ISO 9506-2 Annex A.1.2.1 requires. The scenario therefore ends the
@@ -59,8 +96,8 @@ line is used with `--lenient-parameter-cbbs` for the variable services:
   connecting to this stack as server needs the server (phase S).
 - **G3, refused association.** No scenario checks a refusal by the peer. The refusal paths are
   covered by the loopback tests of task L4.
-- **G4, services beyond Identify.** The bench scenario runs Identify only. The reads, writes and
-  name lists are for the client tasks (T2, T4).
+- **G4, services beyond Identify.** Closed by the matrix of task T4 (above) for the nine services in scope,
+  with the lenient option where G8 applies.
 - **G5, version-dependent PDUs.** The peer negotiates version 1. The PDUs that ISO 9506-2 forbids in
   minor versions 1 and 2 are not refused by this stack yet (see D-018).
 - **G6, Wireshark artefact (not a defect of the stack).** The RLRQ of the release, an ACSE APDU with

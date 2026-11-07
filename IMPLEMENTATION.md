@@ -407,7 +407,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | T1 Transport | [x] |
 | T2 Client API | [x] |
 | T3 `igsmms-client` binary | [x] |
-| T4 Client interop matrix | [ ] |
+| T4 Client interop matrix | [x] |
 | S1 VMD model | [ ] |
 | S2 Server | [ ] |
 | S3 `igsmms-server` binary | [ ] |
