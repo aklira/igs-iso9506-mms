@@ -325,3 +325,33 @@ fn units_out_of_order_decode_to_the_same_value_as_in_order() {
     assert_eq!(spdus, decode_tsdu(&ordered).unwrap());
     assert_eq!(encode_tsdu(&spdus).unwrap(), ordered);
 }
+
+/// Found by the property tests of task C8: the encoder wrote what the decoder refuses.
+#[test]
+fn encoding_applies_the_bounds_of_decoding() {
+    let refuse = Spdu::Refuse(Refuse {
+        reason: Some(Vec::new()),
+        ..Refuse::default()
+    });
+    assert!(encode_tsdu(&[refuse]).is_err());
+    let accept = |selector: usize, additional: usize| {
+        Spdu::Accept(Accept {
+            connection_identifier: Some(ConnectionIdentifier {
+                additional_reference: Some(vec![0; additional]),
+                ..ConnectionIdentifier::default()
+            }),
+            calling_selector: Some(vec![0; selector]),
+            ..Accept::default()
+        })
+    };
+    let bytes = encode_tsdu(&[accept(16, 4)]).unwrap();
+    assert_eq!(decode_tsdu(&bytes).unwrap(), [accept(16, 4)]);
+    assert!(encode_tsdu(&[accept(17, 4)]).is_err());
+    assert!(encode_tsdu(&[accept(16, 5)]).is_err());
+    let abort = Spdu::Abort(Abort {
+        transport_disconnect: 0,
+        reflect: Some(vec![0; 10]),
+        ..Abort::default()
+    });
+    assert!(encode_tsdu(&[abort]).is_err());
+}

@@ -369,10 +369,13 @@ impl Tpdu {
                 } else {
                     CC
                 };
-                header.push(code | (t.credit & 0x0F));
+                fits(t.credit, 0x0F, "credit")?;
+                fits(t.class, 0x0F, "class")?;
+                fits(t.options, 0x0F, "options")?;
+                header.push(code | t.credit);
                 header.extend_from_slice(&t.dst_ref.to_be_bytes());
                 header.extend_from_slice(&t.src_ref.to_be_bytes());
-                header.push((t.class << 4) | (t.options & 0x0F));
+                header.push((t.class << 4) | t.options);
                 let p = &t.parameters;
                 if let Some(size) = p.tpdu_size {
                     put(&mut params, P_TPDU_SIZE, &[size.code()])?;
@@ -396,6 +399,17 @@ impl Tpdu {
                     put(&mut params, P_ADDITIONAL_OPTIONS, &[options])?;
                 }
                 for (code, value) in &p.other {
+                    // Decoding puts there only the defined codes it has no field for.
+                    let own = [
+                        P_TPDU_SIZE,
+                        P_CALLING_SELECTOR,
+                        P_CALLED_SELECTOR,
+                        P_ADDITIONAL_OPTIONS,
+                        P_PREFERRED_MAX_TPDU_SIZE,
+                    ];
+                    if !DEFINED.contains(code) || own.contains(code) {
+                        return Err(Error::FieldOutOfRange("other parameter"));
+                    }
                     put(&mut params, *code, value)?;
                 }
                 &t.user_data
@@ -412,7 +426,8 @@ impl Tpdu {
             }
             Self::Data(t) => {
                 header.push(DT);
-                header.push(if t.end_of_tsdu { 0x80 } else { 0 } | (t.number & 0x7F));
+                fits(t.number, 0x7F, "TPDU number")?;
+                header.push(if t.end_of_tsdu { 0x80 } else { 0 } | t.number);
                 &t.user_data
             }
             Self::Error(t) => {
@@ -442,6 +457,14 @@ impl Tpdu {
             return Err(Error::TpduTooLong(out.len()));
         }
         Ok(out)
+    }
+}
+
+fn fits(value: u8, max: u8, field: &'static str) -> Result<(), Error> {
+    if value <= max {
+        Ok(())
+    } else {
+        Err(Error::FieldOutOfRange(field))
     }
 }
 

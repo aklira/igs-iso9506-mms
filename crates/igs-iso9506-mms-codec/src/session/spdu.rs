@@ -518,18 +518,25 @@ pub fn decode_tsdu(bytes: &[u8]) -> Result<Vec<Spdu>, Error> {
     Ok(vec![first, second])
 }
 
-fn reference_group(id: &ConnectionIdentifier, reference: u8) -> (u8, Vec<(u8, Vec<u8>)>) {
+/// A parameter group: its PGI and its units.
+type Group = (u8, Others);
+
+fn reference_group(id: &ConnectionIdentifier, reference: u8) -> Result<Group, Error> {
+    // The same bounds as on decoding.
     let mut group = Vec::new();
     if let Some(v) = &id.ss_user_reference {
-        group.push((reference, v.clone()));
+        group.push((reference, bounded(reference, v, 64)?));
     }
     if let Some(v) = &id.common_reference {
-        group.push((PI_COMMON_REFERENCE, v.clone()));
+        group.push((PI_COMMON_REFERENCE, bounded(PI_COMMON_REFERENCE, v, 64)?));
     }
     if let Some(v) = &id.additional_reference {
-        group.push((PI_ADDITIONAL_REFERENCE, v.clone()));
+        group.push((
+            PI_ADDITIONAL_REFERENCE,
+            bounded(PI_ADDITIONAL_REFERENCE, v, 4)?,
+        ));
     }
-    (PGI_CONNECTION_ID, group)
+    Ok((PGI_CONNECTION_ID, group))
 }
 
 fn nested(group: Vec<(u8, Vec<u8>)>) -> Result<Vec<u8>, Error> {
@@ -576,7 +583,7 @@ impl Spdu {
         let si = match self {
             Self::Connect(s) => {
                 if let Some(id) = &s.connection_identifier {
-                    let (code, group) = reference_group(id, PI_CALLING_REFERENCE);
+                    let (code, group) = reference_group(id, PI_CALLING_REFERENCE)?;
                     u.push((code, nested(group)?));
                 }
                 if let Some(item) = &s.item {
@@ -614,7 +621,7 @@ impl Spdu {
             }
             Self::Accept(s) => {
                 if let Some(id) = &s.connection_identifier {
-                    let (code, group) = reference_group(id, PI_CALLED_REFERENCE);
+                    let (code, group) = reference_group(id, PI_CALLED_REFERENCE)?;
                     u.push((code, nested(group)?));
                 }
                 if let Some(item) = &s.item {
@@ -646,7 +653,7 @@ impl Spdu {
             }
             Self::Refuse(s) => {
                 if let Some(id) = &s.connection_identifier {
-                    let (code, group) = reference_group(id, PI_CALLED_REFERENCE);
+                    let (code, group) = reference_group(id, PI_CALLED_REFERENCE)?;
                     u.push((code, nested(group)?));
                 }
                 push(
@@ -663,6 +670,10 @@ impl Spdu {
                 );
                 push(&mut u, PI_VERSION, s.version_number.as_ref(), byte);
                 push(&mut u, PI_ENCLOSURE, s.enclosure.as_ref(), byte);
+                // The reason code takes one octet at least, as decoding requires.
+                if s.reason.as_ref().is_some_and(Vec::is_empty) {
+                    return Err(Error::InvalidParameter(PI_REASON));
+                }
                 push(&mut u, PI_REASON, s.reason.as_ref(), bytes);
                 u.extend(s.other.iter().cloned());
                 si::REFUSE
@@ -723,6 +734,18 @@ impl Spdu {
         let field = if let Self::Other { parameters, .. } = self {
             parameters.clone()
         } else {
+            // The same bounds as on decoding: selectors of 16 octets, Reflect of 9.
+            for (code, value) in &units {
+                match *code {
+                    PI_CALLING_SELECTOR | PI_CALLED_SELECTOR => {
+                        bounded(*code, value, 16)?;
+                    }
+                    PI_REFLECT => {
+                        bounded(*code, value, 9)?;
+                    }
+                    _ => {}
+                }
+            }
             let mut field = Vec::new();
             put_units(&mut field, units)?;
             field

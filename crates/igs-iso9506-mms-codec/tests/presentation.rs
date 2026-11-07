@@ -320,3 +320,53 @@ fn malformed_user_data_is_refused() {
     ));
     assert!(UserData::decode_data(&[0x61, 0x00, 0x00], Encoding::Full).is_err());
 }
+
+/// Found by the property tests of task C8: the encoder wrote numbers and bits that the decoder
+/// refuses (X.226 §8.5).
+#[test]
+fn encoding_applies_the_checks_of_decoding() {
+    let accept = |reason: i64, version: BitString| ConnectAccept {
+        mode: Mode::Normal,
+        x410_parameters: None,
+        normal: Some(AcceptNormal {
+            protocol_version: Some(version),
+            context_results: Some(vec![ContextResult {
+                result: 2,
+                transfer_syntax: None,
+                provider_reason: Some(reason),
+            }]),
+            ..AcceptNormal::default()
+        }),
+    };
+    let version1 = BitString {
+        unused: 7,
+        bytes: vec![0x80],
+    };
+    let bytes = accept(3, version1.clone()).encode().unwrap();
+    assert_eq!(
+        ConnectAccept::decode(&bytes).unwrap(),
+        accept(3, version1.clone())
+    );
+    assert_eq!(
+        accept(4, version1).encode(),
+        Err(Error::InvalidValue("provider-reason"))
+    );
+    let unnamed = BitString {
+        unused: 6,
+        bytes: vec![0x40],
+    };
+    assert_eq!(
+        accept(0, unnamed).encode(),
+        Err(Error::InvalidValue("protocol-version"))
+    );
+    let refuse = ConnectRefuse {
+        provider_reason: Some(8),
+        ..ConnectRefuse::default()
+    };
+    assert!(refuse.encode().is_err());
+    let abort = Abort::Provider(AbortProvider {
+        reason: Some(7),
+        event: None,
+    });
+    assert!(abort.encode().is_err());
+}

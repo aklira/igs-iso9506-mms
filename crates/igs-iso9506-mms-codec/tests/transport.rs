@@ -380,3 +380,49 @@ fn malformed_frames_are_refused() {
     assert_eq!(decoder.next_tpdu(), Ok(Some(vec![0x02, 0xF0, 0x80])));
     assert_eq!(decoder.next_tpdu(), Ok(None));
 }
+
+/// Found by the property tests of task C8: fields wider than their bits were cut on encoding.
+#[test]
+fn encoding_refuses_fields_wider_than_their_bits() {
+    let request = |credit, class, options| {
+        Tpdu::ConnectionRequest(ConnectionTpdu {
+            credit,
+            dst_ref: 0,
+            src_ref: 1,
+            class,
+            options,
+            parameters: Parameters::default(),
+            user_data: Vec::new(),
+        })
+    };
+    assert!(request(15, 15, 15).encode().is_ok());
+    assert_eq!(
+        request(16, 0, 0).encode(),
+        Err(Error::FieldOutOfRange("credit"))
+    );
+    assert_eq!(
+        request(0, 16, 0).encode(),
+        Err(Error::FieldOutOfRange("class"))
+    );
+    assert_eq!(
+        request(0, 0, 16).encode(),
+        Err(Error::FieldOutOfRange("options"))
+    );
+    let data = Tpdu::Data(DataTpdu {
+        end_of_tsdu: true,
+        number: 128,
+        user_data: Vec::new(),
+    });
+    assert_eq!(data.encode(), Err(Error::FieldOutOfRange("TPDU number")));
+    // A parameter of `other` must be one that decoding keeps there.
+    let mut parameters = Parameters::default();
+    parameters.other.push((0xC0, vec![0x0A]));
+    let Tpdu::ConnectionRequest(mut cr) = request(0, 0, 0) else {
+        unreachable!()
+    };
+    cr.parameters = parameters;
+    assert_eq!(
+        Tpdu::ConnectionRequest(cr).encode(),
+        Err(Error::FieldOutOfRange("other parameter"))
+    );
+}

@@ -193,12 +193,13 @@ fn write_context_results(
     w.constructed(tag, |seq| {
         for item in list {
             seq.constructed(Identifier::SEQUENCE, |s| {
-                s.integer(ctx(0, false), item.result);
+                // The same named numbers as on decoding.
+                s.integer(ctx(0, false), named_number(item.result, 2, "result")?);
                 if let Some(name) = &item.transfer_syntax {
                     s.object_identifier(ctx(1, false), name)?;
                 }
                 if let Some(reason) = item.provider_reason {
-                    s.integer(ctx(2, false), reason);
+                    s.integer(ctx(2, false), named_number(reason, 3, "provider-reason")?);
                 }
                 Ok::<(), Error>(())
             })?;
@@ -466,6 +467,12 @@ impl ConnectAccept {
                 })?;
             }
             if let Some(p) = &self.normal {
+                // The CPA refuses unnamed bits on decoding (§8.5): so does its encoding.
+                check_versions(
+                    p.protocol_version.as_ref(),
+                    p.presentation_requirements.as_ref(),
+                    p.user_session_requirements.as_ref(),
+                )?;
                 set.constructed(ctx(2, true), |seq| {
                     bits(seq, ctx(0, false), p.protocol_version.as_ref())?;
                     if let Some(s) = &p.responding_selector {
@@ -547,6 +554,8 @@ impl ConnectRefuse {
     /// The user data of a REFUSE SPDU.
     pub fn encode(&self) -> Result<Vec<u8>, Error> {
         let mut w = Writer::new();
+        // The same checks as on decoding.
+        check_versions(self.protocol_version.as_ref(), None, None)?;
         w.constructed(Identifier::SEQUENCE, |seq| {
             bits(seq, ctx(0, false), self.protocol_version.as_ref())?;
             if let Some(s) = &self.responding_selector {
@@ -556,10 +565,10 @@ impl ConnectRefuse {
                 write_context_results(seq, ctx(5, true), list)?;
             }
             if let Some(v) = self.default_context_result {
-                seq.integer(ctx(7, false), v);
+                seq.integer(ctx(7, false), named_number(v, 2, "default-context-result")?);
             }
             if let Some(v) = self.provider_reason {
-                seq.integer(ctx(10, false), v);
+                seq.integer(ctx(10, false), named_number(v, 7, "provider-reason")?);
             }
             if let Some(data) = &self.user_data {
                 data.write(seq)?;
@@ -663,11 +672,12 @@ impl Abort {
                 Ok::<(), Error>(())
             })?,
             Self::Provider(p) => w.constructed(Identifier::SEQUENCE, |seq| {
+                // The same named numbers as on decoding.
                 if let Some(v) = p.reason {
-                    seq.integer(ctx(0, false), v);
+                    seq.integer(ctx(0, false), named_number(v, 6, "abort-reason")?);
                 }
                 if let Some(v) = p.event {
-                    seq.integer(ctx(1, false), v);
+                    seq.integer(ctx(1, false), named_number(v, 32, "event-identifier")?);
                 }
                 Ok::<(), Error>(())
             })?,

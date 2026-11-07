@@ -41,6 +41,10 @@ pub enum Error {
         /// Offset of the octet in fault.
         offset: usize,
     },
+    /// On encoding, a field too large for its bits: credit, class or options (4 bits), TPDU
+    /// number (7 bits); or a parameter of `other` that is not defined, or decoded in its own
+    /// field.
+    FieldOutOfRange(&'static str),
 }
 
 impl Error {
@@ -53,7 +57,10 @@ impl Error {
                 Some(super::reject_cause::INVALID_PARAMETER_VALUE)
             }
             Self::HeaderLength { .. } | Self::Truncated => Some(super::reject_cause::NOT_SPECIFIED),
-            Self::TpktVersion(_) | Self::TpktLength(_) | Self::TpduTooLong(_) => None,
+            Self::TpktVersion(_)
+            | Self::TpktLength(_)
+            | Self::TpduTooLong(_)
+            | Self::FieldOutOfRange(_) => None,
         }
     }
 
@@ -86,6 +93,7 @@ impl fmt::Display for Error {
             Self::InvalidParameterValue { offset } => {
                 write!(f, "invalid parameter value at octet {offset}")
             }
+            Self::FieldOutOfRange(field) => write!(f, "{field} out of range for its bits"),
         }
     }
 }
