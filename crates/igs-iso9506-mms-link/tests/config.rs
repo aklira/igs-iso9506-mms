@@ -70,6 +70,20 @@ fn selectors_at_their_bound_are_accepted() {
 }
 
 #[test]
+fn two_transport_selectors_share_the_header_of_the_connection_request() {
+    let pair = |calling: usize, called: usize| LinkConfig {
+        calling_tsap: Some(vec![1; calling]),
+        called_tsap: Some(vec![2; called]),
+        ..LinkConfig::default()
+    };
+    valid(pair(120, 121));
+    assert_eq!(
+        refused(pair(120, 122)),
+        ConfigError::ConnectionRequestTooLong { length: 255 }
+    );
+}
+
+#[test]
 fn an_empty_selector_is_refused() {
     let config = LinkConfig {
         calling_ssap: Some(Vec::new()),
@@ -115,7 +129,7 @@ fn a_presentation_selector_over_its_bound_is_refused() {
 }
 
 #[test]
-fn a_transport_selector_over_255_octets_is_refused() {
+fn a_transport_selector_over_its_bound_is_refused() {
     let config = LinkConfig {
         called_tsap: Some(vec![0; MAX_TRANSPORT_SELECTOR + 1]),
         ..LinkConfig::default()
@@ -124,8 +138,8 @@ fn a_transport_selector_over_255_octets_is_refused() {
         refused(config),
         ConfigError::SelectorTooLong {
             field: "called_tsap",
-            max: 255,
-            len: 256
+            max: 243,
+            len: 244
         }
     );
 }

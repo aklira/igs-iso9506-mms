@@ -21,9 +21,13 @@ pub const MAX_SESSION_SELECTOR: usize = 16;
 /// bound; the session bound is kept, see D-015.
 pub const MAX_PRESENTATION_SELECTOR: usize = 16;
 
-/// Largest transport selector, in octets. X.224 §13.3.4 a) leaves its length undefined; a
-/// parameter has a one-octet length, so 255 is the bound of the wire format.
-pub const MAX_TRANSPORT_SELECTOR: usize = 255;
+/// Largest transport selector, in octets: alone in the connection request, it leaves 243 octets of
+/// its header to the selector (X.224 §13.2.1, §13.3.4 a). Two selectors share 241, checked by
+/// [`LinkConfig::validate`].
+pub const MAX_TRANSPORT_SELECTOR: usize = 243;
+
+/// Largest length indicator of a TPDU, the octets of its header (X.224 §13.2.1).
+pub const MAX_LENGTH_INDICATOR: usize = 254;
 
 /// Largest value of the proposed data structure nesting level: an INTEGER of 8 bits, positive
 /// (9506-2 §8.2, `proposedDataStructureNestingLevel`).
@@ -110,6 +114,11 @@ pub enum ConfigError {
     },
     /// The AP-title is not an object identifier of the form X.690 §8.19 can encode.
     InvalidApTitle,
+    /// The selectors do not fit in the header of the connection request.
+    ConnectionRequestTooLong {
+        /// The length of the header, in octets.
+        length: usize,
+    },
     /// An integer is outside its range.
     OutOfRange {
         /// The name of the field.
@@ -136,6 +145,10 @@ impl fmt::Display for ConfigError {
                 write!(f, "{field} has {len} octets, at most {max} allowed")
             }
             Self::InvalidApTitle => write!(f, "the AP-title is not a valid object identifier"),
+            Self::ConnectionRequestTooLong { length } => write!(
+                f,
+                "the connection request header would be {length} octets, at most {MAX_LENGTH_INDICATOR} allowed"
+            ),
             Self::OutOfRange {
                 field,
                 min,
@@ -185,6 +198,18 @@ fn check_ap_title(oid: &ObjectIdentifier) -> Result<(), ConfigError> {
 }
 
 impl LinkConfig {
+    /// Octets of the header of the connection request: the fixed part (six), the TPDU size
+    /// parameter (three), and each transport selector with its two octets (X.224 §13.3.4).
+    fn connection_request_header(&self) -> usize {
+        let selectors = [self.calling_tsap.as_deref(), self.called_tsap.as_deref()]
+            .into_iter()
+            .flatten()
+            .fold(0usize, |total, selector| {
+                total.saturating_add(selector.len()).saturating_add(2)
+            });
+        9usize.saturating_add(selectors)
+    }
+
     /// Checks every parameter; the first refused one is returned.
     pub fn validate(&self) -> Result<(), ConfigError> {
         selector(
@@ -197,6 +222,10 @@ impl LinkConfig {
             self.called_tsap.as_deref(),
             MAX_TRANSPORT_SELECTOR,
         )?;
+        let length = self.connection_request_header();
+        if length > MAX_LENGTH_INDICATOR {
+            return Err(ConfigError::ConnectionRequestTooLong { length });
+        }
         selector(
             "calling_ssap",
             self.calling_ssap.as_deref(),
