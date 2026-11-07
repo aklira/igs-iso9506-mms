@@ -389,7 +389,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | F3 Codec approach | [x] |
 | F4 Code generation | [x] |
 | F5 Interop bench skeleton | [x] |
-| C1 BER | [ ] |
+| C1 BER | [x] |
 | C2 TPKT and COTP TPDUs | [ ] |
 | C3 Session SPDUs | [ ] |
 | C4 Presentation PPDUs | [ ] |
