@@ -390,7 +390,7 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | F4 Code generation | [x] |
 | F5 Interop bench skeleton | [x] |
 | C1 BER | [x] |
-| C2 TPKT and COTP TPDUs | [ ] |
+| C2 TPKT and COTP TPDUs | [x] |
 | C3 Session SPDUs | [ ] |
 | C4 Presentation PPDUs | [ ] |
 | C5 ACSE APDUs | [ ] |
