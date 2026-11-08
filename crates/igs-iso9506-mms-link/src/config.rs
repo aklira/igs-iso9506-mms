@@ -58,6 +58,12 @@ pub struct LinkConfig {
     pub called_psap: Option<Vec<u8>>,
     /// AP-title of the initiator, as an object identifier (X.227, AP-title in form 2).
     pub ap_title: Option<ObjectIdentifier>,
+    /// AP-title of the responder, sent in the AARQ when set (ISO 8650-1 §6.1.2). Some servers match the association on it.
+    pub called_ap_title: Option<ObjectIdentifier>,
+    /// AE-qualifier of the initiator, sent in the AARQ when set (ISO 8650-1 §6.1.2).
+    pub calling_ae_qualifier: Option<i64>,
+    /// AE-qualifier of the responder, sent in the AARQ when set (ISO 8650-1 §6.1.2). Some servers match the association on it.
+    pub called_ae_qualifier: Option<i64>,
     /// The application context that the initiator proposes in its AARQ (ISO 9506-2 §A.7). The default is the current one.
     pub application_context: ApplicationContext,
     /// Largest TPDU size proposed in the CR TPDU (X.224 §13.3.4 b).
@@ -87,6 +93,9 @@ impl Default for LinkConfig {
             calling_psap: None,
             called_psap: None,
             ap_title: None,
+            called_ap_title: None,
+            calling_ae_qualifier: None,
+            called_ae_qualifier: None,
             application_context: ApplicationContext::Current,
             tpdu_size: TpduSize::S8192,
             connect_timeout: Duration::from_secs(10),

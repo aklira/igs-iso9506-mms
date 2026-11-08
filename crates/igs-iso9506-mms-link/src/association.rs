@@ -17,7 +17,7 @@ use igs_iso9506_mms_codec::acse::{
     ReleaseRequestReason, ReleaseResponseReason,
 };
 use igs_iso9506_mms_codec::generated::types::{
-    AEQualifier, APTitle, APTitleForm2, InitiateResponsePDUInitResponseDetail,
+    AEQualifier, AEQualifierForm2, APTitle, APTitleForm2, InitiateResponsePDUInitResponseDetail,
     ParameterSupportOptions, ServiceErrorErrorClass, ServiceErrorErrorClassInitiate,
     ServiceSupportOptions,
 };
@@ -250,8 +250,12 @@ impl Association {
         let aarq = ACSEApdu::Aarq(AARQApdu {
             protocol_version: Some(AARQApduProtocolVersion(acse::version1())),
             application_context_name: context_name(self.config.application_context),
-            called_ap_title: None,
-            called_ae_qualifier: None,
+            called_ap_title: self
+                .config
+                .called_ap_title
+                .clone()
+                .map(|oid| APTitle::ApTitleForm2(APTitleForm2(oid))),
+            called_ae_qualifier: self.config.called_ae_qualifier.map(ae_qualifier),
             called_ap_invocation_identifier: None,
             called_ae_invocation_identifier: None,
             // The AP-title of this end, as its configuration gives it (ISO 8650-1 §6.1.2).
@@ -260,7 +264,7 @@ impl Association {
                 .ap_title
                 .clone()
                 .map(|oid| APTitle::ApTitleForm2(APTitleForm2(oid))),
-            calling_ae_qualifier: None,
+            calling_ae_qualifier: self.config.calling_ae_qualifier.map(ae_qualifier),
             calling_ap_invocation_identifier: None,
             calling_ae_invocation_identifier: None,
             sender_acse_requirements: None,
@@ -764,6 +768,11 @@ fn mms_context_name() -> ApplicationContextName {
 
 fn legacy_context_name() -> ApplicationContextName {
     ApplicationContextName(ObjectIdentifier(LEGACY_MMS_APPLICATION_CONTEXT.to_vec()))
+}
+
+/// An AE-qualifier of form 2 (ISO 8650-1 §6.1.2).
+fn ae_qualifier(value: i64) -> AEQualifier {
+    AEQualifier::AeQualifierForm2(AEQualifierForm2(value))
 }
 
 /// The name that the initiator proposes, as its configuration selects it.

@@ -444,6 +444,31 @@ fn the_initiator_proposes_the_2002_context_when_its_configuration_selects_it() {
         .any(|w| w == [0x06, 0x05, 0x28, 0xCA, 0x22, 0x02, 0x05]));
 }
 
+#[test]
+fn the_initiator_sends_the_called_ap_title_and_the_ae_qualifiers_when_configured() {
+    let config = LinkConfig {
+        ap_title: Some(ObjectIdentifier(vec![1, 3, 9999, 1])),
+        called_ap_title: Some(ObjectIdentifier(vec![1, 1, 1, 999])),
+        calling_ae_qualifier: Some(12),
+        called_ae_qualifier: Some(12),
+        ..LinkConfig::default()
+    };
+    let sent = proposed_context(config);
+    // called-AP-title (context 2), called-AE-qualifier (context 3), calling-AE-qualifier (context 7), each in form 2 (INTEGER 12).
+    assert!(sent
+        .windows(8)
+        .any(|w| w == [0xA2, 0x06, 0x06, 0x04, 0x29, 0x01, 0x87, 0x67]));
+    assert!(sent.windows(5).any(|w| w == [0xA3, 0x03, 0x02, 0x01, 0x0C]));
+    assert!(sent.windows(5).any(|w| w == [0xA7, 0x03, 0x02, 0x01, 0x0C]));
+}
+
+#[test]
+fn the_called_ap_title_and_the_ae_qualifiers_are_absent_by_default() {
+    let sent = proposed_context(LinkConfig::default());
+    assert!(!sent.windows(5).any(|w| w == [0xA3, 0x03, 0x02, 0x01, 0x0C]));
+    assert!(!sent.windows(5).any(|w| w == [0xA7, 0x03, 0x02, 0x01, 0x0C]));
+}
+
 // Refused associations
 
 #[test]
