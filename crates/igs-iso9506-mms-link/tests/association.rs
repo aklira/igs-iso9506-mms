@@ -398,6 +398,52 @@ fn the_outstanding_limit_of_zero_is_refused_with_its_class() {
     );
 }
 
+fn proposed_context(config: LinkConfig) -> Vec<u8> {
+    // The application context that the initiator's AARQ carries: the TSDU it sends first.
+    let mut initiator =
+        association::Association::new(Role::Initiator, config.clone(), capabilities()).unwrap();
+    let actions = initiator.handle(Event::Associate(request(
+        &config,
+        &capabilities(),
+        MMS_VERSION,
+        Some(2),
+    )));
+    actions
+        .iter()
+        .filter_map(|action| match action {
+            Action::Send(tsdu) => Some(tsdu.clone()),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
+#[test]
+fn the_initiator_proposes_the_current_context_by_default() {
+    let sent = proposed_context(LinkConfig::default());
+    assert!(sent
+        .windows(7)
+        .any(|w| w == [0x06, 0x05, 0x28, 0xCA, 0x22, 0x02, 0x05]));
+    assert!(!sent
+        .windows(7)
+        .any(|w| w == [0x06, 0x05, 0x28, 0xCA, 0x22, 0x02, 0x03]));
+}
+
+#[test]
+fn the_initiator_proposes_the_2002_context_when_its_configuration_selects_it() {
+    let config = LinkConfig {
+        application_context: igs_iso9506_mms_link::config::ApplicationContext::Legacy,
+        ..LinkConfig::default()
+    };
+    let sent = proposed_context(config);
+    assert!(sent
+        .windows(7)
+        .any(|w| w == [0x06, 0x05, 0x28, 0xCA, 0x22, 0x02, 0x03]));
+    assert!(!sent
+        .windows(7)
+        .any(|w| w == [0x06, 0x05, 0x28, 0xCA, 0x22, 0x02, 0x05]));
+}
+
 // Refused associations
 
 #[test]

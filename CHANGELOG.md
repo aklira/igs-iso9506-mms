@@ -5,6 +5,12 @@ All notable changes to this project are recorded in this file. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- `LinkConfig::application_context`: the application context that the initiator proposes. The default is the current one
+  (`1.0.9506.2.5`); `ApplicationContext::Legacy` proposes the arc `1.0.9506.2.3`, which the peers of the 2002 edition propose.
+  The responder accepts both, as before (decision D-027).
+
 ## [1.0.0] - 2026-11-07
 
 ### Added

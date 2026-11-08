@@ -28,7 +28,7 @@ use igs_iso9506_mms_codec::mms::{
 use igs_iso9506_mms_codec::presentation::{Pdv, PdvValues, UserData};
 use igs_iso9506_mms_codec::schema::{BitString, ObjectIdentifier, RawBer};
 
-use crate::config::{ConfigError, LinkConfig};
+use crate::config::{ApplicationContext, ConfigError, LinkConfig};
 use crate::transport::{Cause as TransportCause, Role};
 use crate::upper::{self, Origin, ACSE_CONTEXT, MMS_ABSTRACT_SYNTAX, MMS_CONTEXT};
 
@@ -249,7 +249,7 @@ impl Association {
         };
         let aarq = ACSEApdu::Aarq(AARQApdu {
             protocol_version: Some(AARQApduProtocolVersion(acse::version1())),
-            application_context_name: mms_context_name(),
+            application_context_name: context_name(self.config.application_context),
             called_ap_title: None,
             called_ae_qualifier: None,
             called_ap_invocation_identifier: None,
@@ -764,6 +764,14 @@ fn mms_context_name() -> ApplicationContextName {
 
 fn legacy_context_name() -> ApplicationContextName {
     ApplicationContextName(ObjectIdentifier(LEGACY_MMS_APPLICATION_CONTEXT.to_vec()))
+}
+
+/// The name that the initiator proposes, as its configuration selects it.
+fn context_name(context: ApplicationContext) -> ApplicationContextName {
+    match context {
+        ApplicationContext::Current => mms_context_name(),
+        ApplicationContext::Legacy => legacy_context_name(),
+    }
 }
 
 /// The user information of an ACSE APDU: one EXTERNAL whose data is the MMS PDU, in the MMS

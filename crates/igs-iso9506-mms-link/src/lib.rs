@@ -24,5 +24,5 @@ pub mod config;
 pub mod transport;
 pub mod upper;
 
-pub use config::{ConfigError, LinkConfig};
+pub use config::{ApplicationContext, ConfigError, LinkConfig};
 pub mod requests;

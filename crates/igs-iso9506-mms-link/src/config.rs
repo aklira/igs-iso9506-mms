@@ -58,6 +58,8 @@ pub struct LinkConfig {
     pub called_psap: Option<Vec<u8>>,
     /// AP-title of the initiator, as an object identifier (X.227, AP-title in form 2).
     pub ap_title: Option<ObjectIdentifier>,
+    /// The application context that the initiator proposes in its AARQ (ISO 9506-2 §A.7). The default is the current one.
+    pub application_context: ApplicationContext,
     /// Largest TPDU size proposed in the CR TPDU (X.224 §13.3.4 b).
     pub tpdu_size: TpduSize,
     /// Time allowed for the transport connection and the association to be established.
@@ -85,6 +87,7 @@ impl Default for LinkConfig {
             calling_psap: None,
             called_psap: None,
             ap_title: None,
+            application_context: ApplicationContext::Current,
             tpdu_size: TpduSize::S8192,
             connect_timeout: Duration::from_secs(10),
             request_timeout: Duration::from_secs(30),
@@ -93,6 +96,16 @@ impl Default for LinkConfig {
             nesting_level: 2,
         }
     }
+}
+
+/// The application context that the initiator proposes (ISO 9506-2 §A.7; decision D-027). A responder of this stack accepts both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ApplicationContext {
+    /// `mms-application-context-version1`, the current one (`1.0.9506.2.5`).
+    #[default]
+    Current,
+    /// The arc `1.0.9506.2.3`, which peers of the 2002 edition propose. Use it to interoperate with those peers.
+    Legacy,
 }
 
 /// A parameter of [`LinkConfig`] that is refused.
