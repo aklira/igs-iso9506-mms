@@ -5,8 +5,12 @@ All notable changes to this project are recorded in this file. The format follow
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-08
+
 ### Added
 
+- `LinkConfig::called_ap_title`, `calling_ae_qualifier` and `called_ae_qualifier`: the initiator can send the called AP-title and
+  the AE-qualifiers in its AARQ, by configuration. They are absent by default, as before.
 - `LinkConfig::application_context`: the application context that the initiator proposes. The default is the current one
   (`1.0.9506.2.5`); `ApplicationContext::Legacy` proposes the arc `1.0.9506.2.3`, which the peers of the 2002 edition propose.
   The responder accepts both, as before (decision D-027).
