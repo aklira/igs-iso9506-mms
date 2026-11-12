@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The strings that the IEC 61850 union of the MMS modules widens, checked against the profile of
-//! the association apart from the codec, as the CBBs are (D-031).
+//! the association apart from the codec, as the CBBs are (D-032).
 //!
 //! The codec decodes the union of ISO 9506-2 and of its IEC 61850-8-1 Annex F extensions:
 //! identifiers of up to 64 characters (Annex F.3.2) and a `Data` MMS string that is a UTF8String

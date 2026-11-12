@@ -126,6 +126,9 @@ pub(crate) async fn establish<C: Connector>(
         config.capabilities.clone(),
     )?;
     requests.set_lenient_parameter_cbbs(config.lenient_parameter_cbbs);
+    requests
+        .set_profile(config.profile)
+        .map_err(Error::Profile)?;
     let first = requests.handle(
         RequestEvent::Association(association::Event::Associate(proposal(config))),
         Duration::ZERO,

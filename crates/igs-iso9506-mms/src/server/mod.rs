@@ -38,6 +38,7 @@ use crate::error::Error;
 use crate::tls::Secure;
 use crate::transport::{accept, ByteStream};
 use crate::vmd::Vmd;
+use igs_iso9506_mms_codec::mms::profile::Profile;
 
 /// The associations a server holds at once; a connection beyond it is closed at once.
 pub const DEFAULT_MAX_ASSOCIATIONS: usize = 64;
@@ -68,6 +69,8 @@ pub struct ServerConfig {
     pub tls: Option<Secure>,
     /// How often the model is polled for its time-driven outputs ([`Model::poll`]).
     pub poll_interval: Duration,
+    /// The application profile of the associations: TASE.2 by default, or the IEC 61850 profile (D-033).
+    pub profile: Profile,
 }
 
 impl ServerConfig {
@@ -79,6 +82,7 @@ impl ServerConfig {
             max_associations: DEFAULT_MAX_ASSOCIATIONS,
             tls: None,
             poll_interval: DEFAULT_POLL_INTERVAL,
+            profile: Profile::TASE2,
         }
     }
 
@@ -197,9 +201,18 @@ impl Server {
             reports.clone(),
             config.poll_interval.max(Duration::from_millis(1)),
         ));
+        // The profile must fit this server's configuration before it listens (D-033).
+        Requests::new(
+            Role::Responder,
+            config.link.clone(),
+            config.capabilities.clone(),
+        )?
+        .set_profile(config.profile)
+        .map_err(Error::Profile)?;
         let shared = Shared {
             link: config.link,
             capabilities: config.capabilities,
+            profile: config.profile,
             calls,
             reports: reports.clone(),
             tls: config.tls,
@@ -241,6 +254,7 @@ impl Server {
 struct Shared {
     link: LinkConfig,
     capabilities: Capabilities,
+    profile: Profile,
     calls: mpsc::Sender<Call>,
     reports: broadcast::Sender<Outbound>,
     tls: Option<Secure>,
@@ -423,6 +437,9 @@ async fn conduct<S: ByteStream>(
     ) else {
         return;
     };
+    if requests.set_profile(shared.profile).is_err() {
+        return;
+    }
     let mut reports = shared.reports.subscribe();
     let started = Instant::now();
     // The identity that the AARQ states, indicated just before the Initiate request.

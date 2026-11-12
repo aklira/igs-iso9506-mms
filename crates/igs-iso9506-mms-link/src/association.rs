@@ -21,6 +21,7 @@ use igs_iso9506_mms_codec::generated::types::{
     ParameterSupportOptions, ServiceErrorErrorClass, ServiceErrorErrorClassInitiate,
     ServiceSupportOptions,
 };
+use igs_iso9506_mms_codec::mms::profile::{Profile, ProfileError, Side};
 use igs_iso9506_mms_codec::mms::{
     self, CbbError, InitiateErrorPDU, InitiateRequestPDU, InitiateResponsePDU, Integer16, Integer8,
     MMSpdu, Negotiated, ServiceError, StringLimits,
@@ -72,6 +73,9 @@ pub enum Refusal {
     },
     /// The presentation or session connection was refused, with its reason code.
     Provider(u8),
+    /// The responder's answer does not fit the profile of this association (D-033); the association is
+    /// aborted.
+    Profile(ProfileError),
 }
 
 /// The answer of the called MMS user to an Initiate request.
@@ -177,9 +181,9 @@ pub struct Association {
     /// Whether the parameter CBBs proposed are taken as negotiated for the checks of outgoing PDUs,
     /// for a peer that answers services whose CBBs it did not negotiate (`docs/capabilities.md`, G8).
     lenient_parameter_cbbs: bool,
-    /// The limits of the profile on the strings that the IEC 61850 union of the codec widens: ISO 9506
-    /// by default (D-031).
-    string_limits: StringLimits,
+    /// The application profile: the limits on the strings that the IEC 61850 union widens, the nesting
+    /// minimum and the rules of the ACSI model (D-032, D-033). TASE.2 by default.
+    profile: Profile,
     /// The application context name of the association: the one proposed by the initiator, as the
     /// responder answers with it.
     context: ApplicationContextName,
@@ -200,7 +204,7 @@ impl Association {
             upper,
             state: State::Idle,
             lenient_parameter_cbbs: false,
-            string_limits: StringLimits::ISO_9506,
+            profile: Profile::TASE2,
             context: mms_context_name(),
         })
     }
@@ -213,9 +217,30 @@ impl Association {
 
     /// Sets the limits of the profile on identifiers and on the MMS string of `Data`, checked on every
     /// PDU sent and received after the negotiation. ISO 9506 by default; the IEC 61850 profile widens
-    /// them (D-031).
+    /// them (D-032).
     pub fn set_string_limits(&mut self, limits: StringLimits) {
-        self.string_limits = limits;
+        self.profile.string_limits = limits;
+    }
+
+    /// Sets the application profile of the association (D-033): its string limits, the nesting minimum
+    /// and the rules of its ACSI model, which apply to both ends of the association. Checked first
+    /// against this end's configuration: the nesting level it proposes or answers with, and the CBBs and
+    /// services it serves on its own side. On error the association keeps its previous profile.
+    pub fn set_profile(&mut self, profile: Profile) -> Result<(), ProfileError> {
+        profile.check_nesting(i64::from(self.config.nesting_level))?;
+        let side = self.own_side();
+        profile.check_parameters(side, &self.capabilities.parameter_cbb)?;
+        profile.check_services(side, &self.capabilities.services)?;
+        self.profile = profile;
+        Ok(())
+    }
+
+    /// The side of this end: the initiator is the client.
+    fn own_side(&self) -> Side {
+        match self.role {
+            Role::Initiator => Side::Client,
+            Role::Responder => Side::Server,
+        }
     }
 
     /// Whether the association is established.
@@ -312,7 +337,10 @@ impl Association {
         match answer {
             Answer::Reject => self.reject(1, None),
             Answer::Accept => match negotiate(&request, &self.capabilities, &self.config) {
-                Ok(response) => self.accept(&request, response),
+                Ok(response) => match self.initiator_within_profile(&request, &response) {
+                    Ok(()) => self.accept(&request, response),
+                    Err(error) => self.reject(1, Some(profile_refusal(error))),
+                },
                 Err(error) => self.reject(1, Some(error)),
             },
         }
@@ -467,6 +495,12 @@ impl Association {
         if !response_within_request(&request, &response) {
             return self.provider_abort();
         }
+        if let Err(error) = self.responder_within_profile(&request, &response) {
+            // The refusal comes first: the caller takes the first outcome of the establishment.
+            let mut out = vec![Action::Refused(Refusal::Profile(error))];
+            out.extend(self.provider_abort());
+            return out;
+        }
         self.state = State::Open(Session {
             me: Negotiated::served_by_calling(&request, &response),
             peer: self.peer_view(&request, &response),
@@ -540,7 +574,7 @@ impl Association {
             return out;
         }
         let served = serving_view(&session, &pdu, true);
-        match checked(&pdu, served, &self.string_limits) {
+        match checked(&pdu, served, &self.profile.string_limits) {
             Ok(()) => vec![Action::Pdu(pdu)],
             Err(error) => vec![Action::Unsupported(pdu, error)],
         }
@@ -593,7 +627,7 @@ impl Association {
             return vec![Action::Misuse("Initiate is not sent within an association")];
         }
         let served = serving_view(&session, &pdu, false);
-        if checked(&pdu, served, &self.string_limits).is_err() {
+        if checked(&pdu, served, &self.profile.string_limits).is_err() {
             return vec![Action::Misuse(
                 "the PDU is not allowed by the negotiation or by the profile",
             )];
@@ -898,7 +932,7 @@ fn is_request(pdu: &MMSpdu) -> bool {
 /// The view of the server that checks a PDU: `incoming` PDUs come from the peer, the others are sent by
 /// this end. The end that serves the PDU is the receiver for a request, the sender otherwise.
 /// The checks of a PDU after the negotiation: its CBBs (D-013), then the strings that the profile
-/// narrows (D-031).
+/// narrows (D-032).
 fn checked(pdu: &MMSpdu, served: &Negotiated, limits: &StringLimits) -> Result<(), CbbError> {
     mms::validate_cbb(pdu, served)?;
     mms::check_strings(pdu, limits)
@@ -937,6 +971,34 @@ fn intersect(a: &BitString, b: &BitString) -> BitString {
 }
 
 impl Association {
+    /// Responder: the initiator's negotiated view, checked against the profile of the association. The
+    /// nesting level answered and the CBBs and services that the initiator supports must fit.
+    fn initiator_within_profile(
+        &self,
+        request: &InitiateRequestPDU,
+        response: &InitiateResponsePDU,
+    ) -> Result<(), ProfileError> {
+        self.profile.check_nesting(answered_nesting(response))?;
+        let peer = Negotiated::served_by_calling(request, response);
+        self.profile
+            .check_parameters(Side::Client, &peer.parameters)?;
+        self.profile.check_services(Side::Client, &peer.services)
+    }
+
+    /// Initiator: the responder's answer, checked against the profile of the association. With the
+    /// lenient option the proposed CBBs stand for the negotiated ones, as in the checks of the PDUs.
+    fn responder_within_profile(
+        &self,
+        request: &InitiateRequestPDU,
+        response: &InitiateResponsePDU,
+    ) -> Result<(), ProfileError> {
+        self.profile.check_nesting(answered_nesting(response))?;
+        let peer = self.peer_view(request, response);
+        self.profile
+            .check_parameters(Side::Server, &peer.parameters)?;
+        self.profile.check_services(Side::Server, &peer.services)
+    }
+
     /// The peer's view of the association; see [`reduced_to_proposal`], and the lenient option.
     fn peer_view(
         &self,
@@ -949,6 +1011,30 @@ impl Association {
         }
         peer
     }
+}
+
+/// The nesting level answered in an Initiate response; an absent level is unlimited (ISO 9506-1 §8.2.1.1.4).
+fn answered_nesting(response: &InitiateResponsePDU) -> i64 {
+    response
+        .negotiated_data_structure_nesting_level
+        .as_ref()
+        .map_or(i64::MAX, |level| level.0)
+}
+
+/// The Initiate error that answers a profile that the initiator does not meet.
+fn profile_refusal(error: ProfileError) -> ServiceError {
+    refusal(match error {
+        ProfileError::NestingBelowProfile { .. } => {
+            ServiceErrorErrorClassInitiate::NESTING_LEVEL_INSUFFICIENT
+        }
+        ProfileError::ParameterNotNegotiated { .. } => {
+            ServiceErrorErrorClassInitiate::PARAMETER_CBB_INSUFFICIENT
+        }
+        ProfileError::ServiceNotSupported { .. } => {
+            ServiceErrorErrorClassInitiate::SERVICE_CBB_INSUFFICIENT
+        }
+        _ => ServiceErrorErrorClassInitiate::OTHER,
+    })
 }
 
 /// The peer's view of the association, reduced to what was proposed. ISO 9506-1 §8.2.1.1.8: any
@@ -1173,5 +1259,158 @@ mod tests {
         let mut answer = response(&[1], &[0]);
         answer.negotiated_max_serv_outstanding_calling = Integer16(9);
         assert!(!response_within_request(&proposal, &answer));
+    }
+
+    fn iec_logical_nodes() -> Profile {
+        Profile::iec61850(igs_iso9506_mms_codec::mms::profile::Model {
+            logical_nodes: true,
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn the_profile_is_checked_against_this_ends_configuration_first() {
+        let services = bits(&[
+            position("identify"),
+            position("getNameList"),
+            position("read"),
+            position("getVariableAccessAttributes"),
+        ]);
+        let complete = Capabilities {
+            parameter_cbb: bits(&[position("str2"), position("vnam")]),
+            services: services.clone(),
+        };
+        // The nesting proposed is two, below the six of the profile.
+        let low = LinkConfig {
+            nesting_level: 2,
+            ..LinkConfig::default()
+        };
+        let mut association = Association::new(Role::Responder, low, complete.clone()).unwrap();
+        assert!(matches!(
+            association.set_profile(iec_logical_nodes()),
+            Err(ProfileError::NestingBelowProfile { required: 6, .. })
+        ));
+        assert_eq!(
+            association.profile,
+            Profile::TASE2,
+            "refused, the profile is kept"
+        );
+
+        // The server does not serve str2: refused, with the CBB named.
+        let config = LinkConfig {
+            nesting_level: 6,
+            ..LinkConfig::default()
+        };
+        let mut without = Association::new(
+            Role::Responder,
+            config.clone(),
+            Capabilities {
+                parameter_cbb: bits(&[position("vnam")]),
+                services: services.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            without.set_profile(iec_logical_nodes()),
+            Err(ProfileError::ParameterNotNegotiated {
+                side: Side::Server,
+                cbb: "str2"
+            })
+        );
+
+        let mut association = Association::new(Role::Responder, config, complete).unwrap();
+        association.set_profile(iec_logical_nodes()).unwrap();
+        assert_eq!(association.profile, iec_logical_nodes());
+        assert_eq!(association.profile.string_limits, StringLimits::IEC_61850);
+    }
+
+    #[test]
+    fn the_initiator_checks_the_responders_answer_against_the_profile() {
+        let capabilities = Capabilities {
+            parameter_cbb: bits(&[position("vnam")]),
+            services: bits(&[position("identify")]),
+        };
+        let config = LinkConfig {
+            nesting_level: 6,
+            ..LinkConfig::default()
+        };
+        let mut association = Association::new(Role::Initiator, config, capabilities).unwrap();
+        association.profile = iec_logical_nodes();
+        let proposal = request(
+            &[
+                position("identify"),
+                position("getNameList"),
+                position("read"),
+                position("getVariableAccessAttributes"),
+            ],
+            &[position("str2"), position("vnam")],
+        );
+        let mut complete = response(
+            &[
+                position("identify"),
+                position("getNameList"),
+                position("read"),
+                position("getVariableAccessAttributes"),
+            ],
+            &[position("str2"), position("vnam")],
+        );
+        complete.negotiated_data_structure_nesting_level = Some(Integer8(6));
+        assert_eq!(
+            association.responder_within_profile(&proposal, &complete),
+            Ok(())
+        );
+
+        // The answer negotiates a nesting of two.
+        let mut shallow = complete.clone();
+        shallow.negotiated_data_structure_nesting_level = Some(Integer8(2));
+        assert_eq!(
+            association.responder_within_profile(&proposal, &shallow),
+            Err(ProfileError::NestingBelowProfile {
+                level: 2,
+                required: 6
+            })
+        );
+
+        // The server does not negotiate vnam.
+        let mut without_vnam = response(&[position("identify")], &[position("str2")]);
+        without_vnam.negotiated_data_structure_nesting_level = Some(Integer8(6));
+        assert_eq!(
+            association.responder_within_profile(&proposal, &without_vnam),
+            Err(ProfileError::ParameterNotNegotiated {
+                side: Side::Server,
+                cbb: "vnam"
+            })
+        );
+    }
+
+    #[test]
+    fn the_responder_checks_the_initiators_proposal_against_the_profile() {
+        let capabilities = Capabilities {
+            parameter_cbb: bits(&[position("str2"), position("vnam")]),
+            services: bits(&[
+                position("identify"),
+                position("getNameList"),
+                position("read"),
+                position("getVariableAccessAttributes"),
+            ]),
+        };
+        let config = LinkConfig {
+            nesting_level: 6,
+            ..LinkConfig::default()
+        };
+        let mut association = Association::new(Role::Responder, config, capabilities).unwrap();
+        association.profile = iec_logical_nodes();
+        // The initiator proposes vnam and str2 but negotiates no client CBB for the model: vnam is required
+        // of the client by Table 128 (c1), so an answer without it is refused.
+        let proposal = request(&[position("identify")], &[position("str2")]);
+        let mut answer = response(&[position("identify")], &[position("str2")]);
+        answer.negotiated_data_structure_nesting_level = Some(Integer8(6));
+        assert_eq!(
+            association.initiator_within_profile(&proposal, &answer),
+            Err(ProfileError::ParameterNotNegotiated {
+                side: Side::Client,
+                cbb: "vnam"
+            })
+        );
     }
 }

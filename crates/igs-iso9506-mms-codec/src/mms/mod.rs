@@ -14,6 +14,7 @@
 
 mod cbb;
 mod floating;
+pub mod profile;
 mod strings;
 mod time;
 

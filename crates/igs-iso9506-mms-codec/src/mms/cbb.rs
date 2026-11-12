@@ -132,14 +132,14 @@ pub enum CbbError {
         /// The negotiated level.
         limit: i64,
     },
-    /// An identifier longer than the profile allows (D-031).
+    /// An identifier longer than the profile allows (D-032).
     IdentifierLength {
         /// Characters of the identifier.
         length: usize,
         /// Largest number the profile allows.
         limit: usize,
     },
-    /// A `Data` MMS string that the profile does not allow (D-031).
+    /// A `Data` MMS string that the profile does not allow (D-032).
     DataString {
         /// What is wrong.
         reason: &'static str,

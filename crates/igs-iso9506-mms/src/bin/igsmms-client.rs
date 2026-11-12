@@ -18,6 +18,7 @@ use igs_iso9506_mms_codec::generated::types::{
     VariableAccessSpecification, VariableAccessSpecificationListOfVariableItem,
     VariableSpecification, WriteRequest, WriteResponseItemItem,
 };
+use igs_iso9506_mms_codec::mms::profile::{Model, Profile};
 use igs_iso9506_mms_codec::mms::{Data, Identifier, ObjectName, ObjectNameDomainSpecific};
 use igs_iso9506_mms_link::config::LinkConfig;
 
@@ -55,6 +56,23 @@ struct Cli {
         value_parser = clap::value_parser!(u8).range(2..=127)
     )]
     nesting: u8,
+
+    /// The application profile: TASE.2 (ISO 9506 limits) or IEC 61850-8-1 (clause 24; D-033). The
+    /// IEC 61850 profile needs a nesting of six or more when logical nodes are declared.
+    #[arg(long, global = true, value_name = "PROFILE", value_enum, default_value_t = ProfileChoice::Tase2)]
+    profile: ProfileChoice,
+
+    /// For the IEC 61850 profile: the logical-node model is declared (Table 127 and 128, c1 and c2).
+    #[arg(long, global = true)]
+    logical_nodes: bool,
+
+    /// For the IEC 61850 profile: data sets are declared.
+    #[arg(long, global = true)]
+    data_sets: bool,
+
+    /// For the IEC 61850 profile: arrays are declared in the data objects.
+    #[arg(long, global = true)]
+    arrays: bool,
 
     /// Seconds to wait for each answer before a request times out.
     #[arg(long, global = true, value_name = "SECONDS", default_value_t = 30)]
@@ -120,6 +138,15 @@ enum Command {
 }
 
 /// The classes of objects that `names` lists.
+/// The application profile of the command line.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ProfileChoice {
+    /// ISO 9506 as TASE.2 uses it.
+    Tase2,
+    /// IEC 61850-8-1 clause 24, with the declared model of the command line.
+    Iec61850,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Class {
     /// Named variables.
@@ -329,10 +356,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         request_timeout: Duration::from_secs(cli.timeout),
         ..LinkConfig::default()
     };
+    let profile = match cli.profile {
+        ProfileChoice::Tase2 => Profile::TASE2,
+        ProfileChoice::Iec61850 => Profile::iec61850(Model {
+            logical_nodes: cli.logical_nodes,
+            data_sets: cli.data_sets,
+            arrays: cli.arrays,
+        }),
+    };
     let config = ClientConfig {
         reconnect: Reconnect::Never,
         trace: cli.trace,
         lenient_parameter_cbbs: cli.lenient_parameter_cbbs,
+        profile,
         ..ClientConfig::new(link, in_scope_capabilities())
     };
     let (client, events) = Client::connect(&cli.server, config).await?;

@@ -170,7 +170,7 @@ fn every_alternative_of_data() {
             ])),
         ),
         (
-            // Annex F.3.3: the MMS string of Data is a UTF8String in the union (D-031).
+            // Annex F.3.3: the MMS string of Data is a UTF8String in the union (D-032).
             tlv(0x90, &["é€".as_bytes()]),
             Data::MMSString(DataMMSString("é€".into())),
         ),
@@ -210,7 +210,7 @@ fn every_alternative_of_data() {
 #[test]
 fn identifiers() {
     // The codec reads the union: up to 64 characters (IEC 61850-8-1 Annex F.3.2); a profile narrows
-    // it, see tests/string_limits.rs (D-031).
+    // it, see tests/string_limits.rs (D-032).
     for text in [
         "a",
         "LLN0$ST$Mod$stVal",

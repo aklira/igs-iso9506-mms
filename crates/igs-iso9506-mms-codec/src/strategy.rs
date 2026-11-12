@@ -259,7 +259,7 @@ pub fn unsupported(from: u32, used: &'static [u32]) -> BoxedStrategy<(u32, RawBe
 }
 
 /// Identifiers: 1 to 64 letters, digits, `$` and `_`: the union of ISO 9506-2 §7.5.2 and IEC
-/// 61850-8-1 Annex F.3.2 that the codec reads (D-031).
+/// 61850-8-1 Annex F.3.2 that the codec reads (D-032).
 pub fn identifier() -> BoxedStrategy<String> {
     let alphabet: Vec<char> = ('a'..='z')
         .chain('A'..='Z')

@@ -49,7 +49,7 @@ const LENIENT: [&str; 5] = [
 ///
 /// `DataMMSString` is the `mMSString` alternative of `Data` in the IEC 61850 union (IEC 61850-8-1
 /// Annex F.3.3): its size of 0 to 255 belongs to the IEC 61850 profile and is checked apart, with the
-/// identifiers, by the string walk of the link (D-031).
+/// identifiers, by the string walk of the link (D-032).
 const UNCHECKED: [&str; 5] = [
     "ServiceSupportOptions",
     "ParameterSupportOptions",
@@ -61,7 +61,7 @@ const UNCHECKED: [&str; 5] = [
 /// Members kept with the tagging of ISO 9506-2 although the IEC 61850 union changes it: IEC 61850-8-1
 /// Annex F.1 makes `mMSString` of `TypeDescription` implicit, while ISO 9506-2 leaves it explicit (the
 /// module tags explicitly by default). The codec keeps the ISO form until the profile chooses the
-/// encoding (task N3 of igs-iec61850-mms; D-031).
+/// encoding (task N3 of igs-iec61850-mms; D-032).
 const ISO_TAGGING: [(&str, &str); 1] = [("TypeDescription", "mMSString")];
 
 /// Types read in their ELSE branch: the profile has no `char` CBB (IEC 60870-6-702 table A.19), so
@@ -708,7 +708,7 @@ impl<'a> Generator<'a> {
     }
 }
 
-/// Strings checked against the profile apart from the codec (D-031): the identifiers, whose size the
+/// Strings checked against the profile apart from the codec (D-032): the identifiers, whose size the
 /// union widens to 64, and the `mMSString` of `Data`, a UTF-8 string in the union.
 const WALKED: [&str; 2] = ["Identifier", "DataMMSString"];
 

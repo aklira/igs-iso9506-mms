@@ -188,6 +188,15 @@ impl Requests {
         self.association.set_lenient_parameter_cbbs(on);
     }
 
+    /// Sets the application profile of the association (see
+    /// [`association::Association::set_profile`], D-033).
+    pub fn set_profile(
+        &mut self,
+        profile: igs_iso9506_mms_codec::mms::profile::Profile,
+    ) -> Result<(), igs_iso9506_mms_codec::mms::profile::ProfileError> {
+        self.association.set_profile(profile)
+    }
+
     /// Sets the limits of the profile on identifiers and on the MMS string of `Data` (see
     /// [`association::Association::set_string_limits`]).
     pub fn set_string_limits(&mut self, limits: igs_iso9506_mms_codec::mms::StringLimits) {

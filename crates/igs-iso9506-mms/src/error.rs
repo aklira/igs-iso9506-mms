@@ -4,6 +4,7 @@
 
 //! Errors of the client crate.
 
+use igs_iso9506_mms_codec::mms::profile::ProfileError;
 use std::fmt;
 
 use igs_iso9506_mms_codec::mms::{RejectPDURejectReason, ServiceError};
@@ -19,6 +20,8 @@ pub enum Error {
     Io(std::io::Error),
     /// The configuration is not valid.
     Config(ConfigError),
+    /// The application profile does not fit this end's configuration (D-033).
+    Profile(ProfileError),
     /// The connection was not established within the connect timeout.
     ConnectTimeout,
     /// The transport connection was closed, for this cause.
@@ -53,11 +56,17 @@ impl fmt::Display for Error {
         match self {
             Self::Io(error) => write!(f, "the stream failed: {error}"),
             Self::Config(error) => write!(f, "invalid configuration: {error}"),
+            Self::Profile(error) => {
+                write!(f, "the profile does not fit the configuration: {error}")
+            }
             Self::ConnectTimeout => write!(f, "the connection was not established in time"),
             Self::Closed(cause) => write!(f, "the transport connection was closed: {cause:?}"),
             Self::PeerClosed => write!(f, "the peer closed the stream"),
             Self::Stopped => write!(f, "the connection driver has stopped"),
             Self::Misuse(message) => write!(f, "a protocol layer refused an event: {message}"),
+            Self::Refused(Refusal::Profile(error)) => {
+                write!(f, "the peer does not fit the profile: {error}")
+            }
             Self::Refused(refusal) => write!(f, "the association was refused: {refusal:?}"),
             Self::Service(error) => write!(f, "the peer answered with an error: {error:?}"),
             Self::Rejected(reason) => write!(f, "the peer rejected the request: {reason:?}"),
@@ -76,6 +85,7 @@ impl std::error::Error for Error {
             Self::Io(error) => Some(error),
             Self::Tls(error) => Some(error),
             Self::Config(error) => Some(error),
+            Self::Profile(error) => Some(error),
             _ => None,
         }
     }

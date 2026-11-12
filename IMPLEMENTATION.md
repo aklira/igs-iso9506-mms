@@ -370,7 +370,7 @@ The tasks are defined in `~/Dev/igs-iec61850-mms/IMPLEMENTATION.md` (phase N) an
 rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-iec-tase2` stays green.
 
 - **N1 — Generator input and codec union**: the union of ISO 9506 and IEC 61850-8-1 Annex F, the
-  strings checked per profile (D-031).
+  strings checked per profile (D-032).
 - **N2 — IEC 61850 MMS profile**: limits, nesting, CBBs and services of IEC 61850-8-1 clause 24.
 - **N3 — Typed UtcTime, MMSString and TypeDescription** by profile.
 - **N4 — Alternate access towards the model.**
@@ -429,7 +429,7 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 | X3 Supported service matrix | [x] |
 | R1 Legal review and release ⛔ | [ ] |
 | N1 Generator input and codec union | [x] |
-| N2 IEC 61850 MMS profile | [ ] |
+| N2 IEC 61850 MMS profile | [x] |
 | N3 Typed UtcTime, MMSString and TypeDescription | [ ] |
 | N4 Alternate access towards the model | [ ] |
 | N5 Observable outbound delivery | [ ] |

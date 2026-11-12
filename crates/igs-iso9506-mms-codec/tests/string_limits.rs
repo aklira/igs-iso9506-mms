@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! The IEC 61850 union of the MMS types (task N1 of igs-iec61850-mms, D-031): the strings it widens
+//! The IEC 61850 union of the MMS types (task N1 of igs-iec61850-mms, D-032): the strings it widens
 //! are checked per profile apart from the codec, and the new service error `pdu-size` encodes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
@@ -110,7 +110,7 @@ fn the_mms_string_of_data_follows_the_profile() {
         check_strings(&over, &StringLimits::IEC_61850),
         Err(CbbError::DataString { .. })
     ));
-    // The codec itself takes any length: the profile decides (D-031).
+    // The codec itself takes any length: the profile decides (D-032).
     let bytes = mms::encode(&over).unwrap();
     assert_eq!(mms::decode(&bytes).unwrap(), over);
 }

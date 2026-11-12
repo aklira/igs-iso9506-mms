@@ -23,6 +23,7 @@ use igs_iso9506_mms_codec::generated::types::{
     GetVariableAccessAttributesRequest, GetVariableAccessAttributesResponse, IdentifyRequest,
     IdentifyResponse, ReadRequest, ReadResponse, UnconfirmedService, WriteRequest, WriteResponse,
 };
+use igs_iso9506_mms_codec::mms::profile::Profile;
 use igs_iso9506_mms_link::association::Capabilities;
 use igs_iso9506_mms_link::config::LinkConfig;
 use tokio::sync::{mpsc, oneshot};
@@ -80,6 +81,9 @@ pub struct ClientConfig {
     /// that answers services without having negotiated their CBBs (`docs/capabilities.md`, G8). Off
     /// by default: the standard's negotiation is the rule.
     pub lenient_parameter_cbbs: bool,
+    /// The application profile of the associations: TASE.2 by default, or the IEC 61850 profile of
+    /// IEC 61850-8-1 clause 24 (D-033).
+    pub profile: Profile,
 }
 
 impl ClientConfig {
@@ -93,6 +97,7 @@ impl ClientConfig {
             event_capacity: DEFAULT_CAPACITY,
             trace: false,
             lenient_parameter_cbbs: false,
+            profile: Profile::TASE2,
         }
     }
 }

@@ -834,7 +834,7 @@ silent, to be confirmed by an observation test against other implementations.
 - **Test material**: `tests/fixtures/tls` (the leaf keys are test-only; the roots' keys were discarded by
   `generate.sh`).
 
-### D-031 — The codec reads the IEC 61850 union; the profile narrows its strings (task N1 of igs-iec61850-mms)
+### D-032 — The codec reads the IEC 61850 union; the profile narrows its strings (task N1 of igs-iec61850-mms)
 
 - **Decision**: the generator reads the MMS modules with the four extensions of IEC 61850-8-1 Annex F
   applied (`variante_61850`, built in the private repository): `utc-time` [17] in `Data` (an `UtcTime` of 8
@@ -864,6 +864,51 @@ silent, to be confirmed by an observation test against other implementations.
 - **Test**: `crates/igs-iso9506-mms-codec/tests/string_limits.rs`, `tests/common_types.rs`,
   `tests/mms_pdus.rs` (the UTC time of the bench peer, now typed), the unit test
   `identifiers_are_checked_against_the_profile_after_the_cbbs` of the association.
+
+### D-033 — The IEC 61850 profile: nesting, CBBs and services of clause 24, checked on both ends (task N2 of igs-iec61850-mms)
+
+- **Decision**: `igs_iso9506_mms_codec::mms::profile` defines a `Profile`: the string limits (D-032), the
+  smallest nesting level, and an ACSI `Model` (logical nodes, data sets, arrays) whose rules come from
+  IEC 61850-8-1 clause 24. `Profile::TASE2` keeps the ISO 9506 limits and no rule. `Profile::iec61850(model)`
+  takes the IEC limits, a nesting of six when the logical-node model is declared (two otherwise), and the
+  rules: the parameter CBBs of Table 128 and the services of Table 127 that each side requires under the
+  model, with the conditions of the clause (c1, c2, c3, c5). `xtask codegen` reads them from
+  `docs/spec/8-1/data/conformance_81.yaml` (N2 rule: values from the data files) into `generated/profile_81.rs`.
+  A condition is mapped to the features it names; a condition that names none (c6, CreateDataSet; the
+  writes c3; the reporting of c15) is `Unmodelled` and checked for nothing.
+- **Where it applies**: `Association::set_profile` checks this end first: its nesting, and the CBBs and
+  services it serves on its side. A failure leaves the previous profile. The initiator checks the
+  responder's answer (nesting, and the CBBs and services of the server side); the responder checks the
+  initiator's answer (nesting, and the client side) and refuses with the Initiate error of the failed
+  check (`NESTING_LEVEL_INSUFFICIENT`, `PARAMETER_CBB_INSUFFICIENT`, `SERVICE_CBB_INSUFFICIENT`). The
+  initiator's refusal is `Refusal::Profile`, reported before the abort, and the client shows the CBB or
+  the nesting that the peer lacks. The client, the server and `igsmms-client` take the profile
+  (`ClientConfig::profile`, `ServerConfig::profile`, `--profile iec61850 --logical-nodes …`).
+- **Both ends, one model**: the model of the profile describes the association, so the peer is checked
+  against the same model as this end. The peer's own model is not known to this end; a peer that declares a
+  different model is checked on this one. This is a configuration choice of the application.
+- **The reference peer, observed (gap G8)**: the example server of libiec61850 (tag `v1.6.2.1`, black box)
+  negotiates no parameter CBB (`0000` in its Initiate response, captured on the bench) and serves the
+  logical nodes. Strictly, Table 128 requires `str2` and `vnam` of a server that declares the logical-node
+  model, so the peer is refused, and the refusal names `str2`. The `--lenient-parameter-cbbs` option
+  (G8) takes the proposed CBBs as negotiated, for the profile check and the outgoing checks alike. With the
+  option, the peer identifies itself, lists its logical devices and lists 304 variables, identifiers of up
+  to 39 characters, and the capture decodes without malformed frame. The default stays strict.
+- **Not checked**: the services and parameters that depend on features this model does not declare
+  (reporting, control, file transfer, dynamic data sets, alternate access). A profile without them is
+  incomplete for those features; each one is added with its feature (tasks D2, B1, K3, O1).
+- **Sources**: IEC 61850-8-1:2011+AMD1:2020 clause 24 (Tables 124 to 128, c1 to c6, with their notes),
+  generated from `conformance_81.yaml` (CONTEXT §18 of norm_preparation); ISO 9506-2 §8.1.3.14, §8.1.3.15
+  (services and parameter CBBs).
+- **Confidence**: high for the rules that the clause states as conditions on the model; medium for the
+  reading of c1 of Table 127 (logical device or logical node) as the logical-node model, the only feature
+  that gives it; high for the observed refusal and the observed negotiation of the reference peer.
+- **Test**: `crates/igs-iso9506-mms-codec/tests/profile.rs` (rules per model, nesting, missing CBB or
+  service, length limits); the unit tests `the_profile_is_checked_against_this_ends_configuration_first`,
+  `the_initiator_checks_the_responders_answer_against_the_profile`,
+  `the_responder_checks_the_initiators_proposal_against_the_profile`; the bench of igs-iec61850-mms
+  (`bench/tests/test_f4_mms_client.py`: the strict refusal, the lenient identification, listing and
+  decoding).
 
 ## Third-party code and sources
 

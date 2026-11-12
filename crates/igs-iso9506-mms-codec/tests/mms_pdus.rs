@@ -363,7 +363,7 @@ fn environment_pdus() {
 }
 
 /// ISO 9506 defines no `[17]` in Data; the bench peer sends one, a UTC time of IEC 61850: the union
-/// of the codec reads it typed (IEC 61850-8-1 Annex F.3.1, D-031). A tag past the union is kept.
+/// of the codec reads it typed (IEC 61850-8-1 Annex F.3.1, D-032). A tag past the union is kept.
 #[test]
 fn data_beyond_the_last_alternative_is_kept() {
     let utc = tlv(0x91, &[&[0x6A, 0xEF, 0x08, 0x32, 0x58, 0x10, 0x62, 0x00]]);

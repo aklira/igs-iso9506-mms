@@ -5,7 +5,7 @@ All notable changes to this project are recorded in this file. The format follow
 
 ## [Unreleased]
 
-The next release is **2.0.0**: the public types change (decision D-031).
+The next release is **2.0.0**: the public types change (decision D-032).
 
 ### Added
 
@@ -17,6 +17,12 @@ The next release is **2.0.0**: the public types change (decision D-031).
   `Requests::set_string_limits` choose the limits; ISO 9506 by default, so the behaviour of the ISO 9506
   profile (TASE.2) is unchanged.
 - `CbbError::IdentifierLength` and `CbbError::DataString`.
+- `mms::profile`: `Profile` (`TASE2`, `iec61850(Model)`), with the IEC 61850-8-1 clause 24 rules of the declared
+  ACSI model: the nesting of six, the parameter CBBs (Table 128) and the services (Table 127) of each side
+  (`required_parameters`, `required_services`, `check_parameters`, `check_services`, `check_nesting`).
+  `Association::set_profile` and `Requests::set_profile` apply it; `ClientConfig::profile` and
+  `ServerConfig::profile` carry it; `igsmms-client --profile iec61850 --logical-nodes [--data-sets] [--arrays]`.
+- `Refusal::Profile` and `Error::Profile`: a profile refusal, with the CBB or the nesting that is missing.
 
 ### Changed
 
