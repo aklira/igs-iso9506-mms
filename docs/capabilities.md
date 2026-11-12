@@ -196,7 +196,7 @@ breaks the negotiation. The codec's CBB tests cover the refusal itself (`crates/
 
 Gaps of the server:
 
-- **Reports go to every open association.** There is no reporting control block in the model yet: a report
+- **Reports are queued per association (D-036).** A report goes to every open association, or to the one a model names; an association whose queue is full refuses it, and each outcome is a `Delivery`. There is no reporting control block in the model yet: a report
   is not addressed to the clients that enabled it.
 - **One task serves all the associations.** The services run one at a time (D-026). The load test with 50
   clients is task S4.

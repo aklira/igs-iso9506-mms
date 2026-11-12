@@ -11,7 +11,11 @@
 //! serve with a Reject PDU, and reports the unconfirmed PDUs that [`Server::publish`] sends.
 
 pub mod access;
+mod delivery;
 mod service;
+
+pub use delivery::{Delivery, Discard, MessageId, Publication, Refusal};
+use delivery::{Hub, Outgoing, Queued};
 
 use std::collections::VecDeque;
 use std::net::SocketAddr;
@@ -30,7 +34,7 @@ use igs_iso9506_mms_link::config::LinkConfig;
 use igs_iso9506_mms_link::requests::{Action, Event, Requests};
 use igs_iso9506_mms_link::transport::Role;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{broadcast, mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use tokio::time::{timeout, Instant};
 
@@ -50,9 +54,13 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 /// The calls waiting for the model.
 const CALL_CAPACITY: usize = 64;
 
-/// The unconfirmed PDUs waiting for an association. An association that falls behind misses the
-/// reports it did not take in time (the broadcast of tokio drops the oldest).
-const REPORT_CAPACITY: usize = 16;
+/// The reports waiting for an association by default. An association that falls further behind refuses the
+/// reports, and each refusal is an outcome ([`Delivery::Refused`]).
+pub const DEFAULT_REPORT_QUEUE: usize = 16;
+
+/// The outcomes waiting for the application. An outcome that the application does not take in time is counted
+/// ([`Server::dropped_deliveries`]).
+const DELIVERY_CAPACITY: usize = 1024;
 
 /// How long the listener waits after an accept error (for example, too many open files).
 const ACCEPT_RETRY: Duration = Duration::from_millis(50);
@@ -72,6 +80,8 @@ pub struct ServerConfig {
     pub poll_interval: Duration,
     /// The application profile of the associations: TASE.2 by default, or the IEC 61850 profile (D-033).
     pub profile: Profile,
+    /// The reports queued for each association, at least one (N5).
+    pub report_queue: usize,
 }
 
 impl ServerConfig {
@@ -84,7 +94,14 @@ impl ServerConfig {
             tls: None,
             poll_interval: DEFAULT_POLL_INTERVAL,
             profile: Profile::TASE2,
+            report_queue: DEFAULT_REPORT_QUEUE,
         }
+    }
+
+    /// Queues this many reports for each association (N5): an association that holds this many refuses the next.
+    pub fn with_report_queue(mut self, reports: usize) -> Self {
+        self.report_queue = reports;
+        self
     }
 
     /// Secures every connection with this TLS backend (task X1).
@@ -209,7 +226,8 @@ impl Model for Vmd {
 /// A running server. Dropping it stops the listener and the associations.
 pub struct Server {
     local_address: SocketAddr,
-    reports: broadcast::Sender<Outbound>,
+    hub: Arc<Hub>,
+    deliveries: mpsc::Receiver<Delivery>,
     stop: watch::Sender<bool>,
     listener: JoinHandle<()>,
 }
@@ -228,13 +246,24 @@ impl Server {
     ) -> Result<Self, Error> {
         let listener = TcpListener::bind(address).await.map_err(Error::Io)?;
         let local_address = listener.local_addr().map_err(Error::Io)?;
+        if config.report_queue == 0 {
+            return Err(Error::Config(
+                igs_iso9506_mms_link::config::ConfigError::OutOfRange {
+                    field: "report_queue",
+                    min: 1,
+                    max: u64::MAX,
+                    value: 0,
+                },
+            ));
+        }
         let (calls, received) = mpsc::channel(CALL_CAPACITY);
-        let (reports, _) = broadcast::channel(REPORT_CAPACITY);
+        let (events, deliveries) = mpsc::channel(DELIVERY_CAPACITY);
+        let hub = Arc::new(Hub::new(config.report_queue, events));
         let (stop, stop_rx) = watch::channel(false);
         tokio::spawn(model_task(
             model,
             received,
-            reports.clone(),
+            Arc::clone(&hub),
             config.poll_interval.max(Duration::from_millis(1)),
         ));
         // The profile must fit this server's configuration before it listens (D-033).
@@ -250,7 +279,7 @@ impl Server {
             capabilities: config.capabilities,
             profile: config.profile,
             calls,
-            reports: reports.clone(),
+            hub: Arc::clone(&hub),
             tls: config.tls,
             next_peer: Arc::new(AtomicU64::new(1)),
         };
@@ -258,7 +287,8 @@ impl Server {
         let listener = tokio::spawn(accept_loop(listener, shared, stop_rx, limit));
         Ok(Self {
             local_address,
-            reports,
+            hub,
+            deliveries,
             stop,
             listener,
         })
@@ -269,13 +299,27 @@ impl Server {
         self.local_address
     }
 
-    /// Sends an unconfirmed PDU (an information report, for instance) to every association that is open.
-    /// Returns the number of associations it was queued to. An association that does not take it in time
-    /// misses it.
+    /// Publishes an unconfirmed PDU (an information report, for instance) to every association that is open, and
+    /// returns how many queued it. The call never waits: each association queues it, or refuses it when its queue
+    /// is full; the outcomes are [`Delivery`] events ([`Server::next_delivery`]); see [`Server::publish_report`].
     pub fn publish(&self, report: UnconfirmedService) -> usize {
-        self.reports
-            .send(Outbound { peer: None, report })
-            .unwrap_or(0)
+        self.publish_report(report).queued
+    }
+
+    /// Publishes like [`Server::publish`], and returns the identifier of the report and the count of the
+    /// associations that queued it and that refused it.
+    pub fn publish_report(&self, report: UnconfirmedService) -> Publication {
+        self.hub.publish(None, report)
+    }
+
+    /// The next outcome of a report, for any association, in order; `None` once the server has stopped.
+    pub async fn next_delivery(&mut self) -> Option<Delivery> {
+        self.deliveries.recv().await
+    }
+
+    /// The outcomes that were not sent, because the application did not take them in time (see [`Delivery`]).
+    pub fn dropped_deliveries(&self) -> u64 {
+        self.hub.dropped()
     }
 
     /// Stops listening and ends the associations. Returns when the listener has stopped.
@@ -292,7 +336,7 @@ struct Shared {
     capabilities: Capabilities,
     profile: Profile,
     calls: mpsc::Sender<Call>,
-    reports: broadcast::Sender<Outbound>,
+    hub: Arc<Hub>,
     tls: Option<Secure>,
     next_peer: Arc<AtomicU64>,
 }
@@ -369,7 +413,7 @@ enum Call {
 async fn model_task<M: Model>(
     mut model: M,
     mut calls: mpsc::Receiver<Call>,
-    reports: broadcast::Sender<Outbound>,
+    hub: Arc<Hub>,
     poll_interval: Duration,
 ) {
     let started = Instant::now();
@@ -389,7 +433,7 @@ async fn model_task<M: Model>(
             },
             _ = ticker.tick() => {
                 for outbound in model.poll(started.elapsed()) {
-                    let _ = reports.send(outbound);
+                    hub.publish(outbound.peer, outbound.report);
                 }
             }
         }
@@ -455,6 +499,19 @@ async fn association<S: ByteStream>(
     }
 }
 
+/// The actions of one event, untagged: no report is waiting on them.
+fn untagged(actions: Vec<Action>) -> impl Iterator<Item = (Option<MessageId>, Action)> {
+    actions.into_iter().map(|action| (None, action))
+}
+
+/// The next report queued for the association, once it is open; pending forever before that.
+async fn next_queued(queue: &mut Option<mpsc::Receiver<Queued>>) -> Option<Queued> {
+    match queue {
+        Some(queue) => queue.recv().await,
+        None => std::future::pending().await,
+    }
+}
+
 /// The exchanges of one association, until it ends. `admitted` is set when the model admits the association.
 async fn conduct<S: ByteStream>(
     stream: S,
@@ -476,40 +533,54 @@ async fn conduct<S: ByteStream>(
     if requests.set_profile(shared.profile).is_err() {
         return;
     }
-    let mut reports = shared.reports.subscribe();
+    // The reports of this association. Its drop, however the association ends, discards what it still holds.
+    let mut outgoing = Outgoing::new(Arc::clone(&shared.hub), id);
     let started = Instant::now();
     // The identity that the AARQ states, indicated just before the Initiate request.
     let mut calling: Option<Calling> = None;
-    // FIFO: the actions of one event are carried out in the order the layers give them.
-    let mut work: VecDeque<Action> = VecDeque::new();
+    // FIFO: the actions of one event are carried out in the order the layers give them. A send that carries a
+    // report is tagged with the report's message identifier, until it is written.
+    let mut work: VecDeque<(Option<MessageId>, Action)> = VecDeque::new();
     loop {
         tokio::select! {
             received = transport.recv() => {
                 let Some(tsdu) = received else { return };
-                work.extend(requests.handle(
+                work.extend(untagged(requests.handle(
                     Event::Association(association::Event::Received(tsdu)),
                     started.elapsed(),
-                ));
+                )));
             }
-            outbound = reports.recv(), if requests.is_open() => {
-                // A lagged receiver misses the reports it did not take in time. A report for another
-                // association is not this one's.
-                if let Ok(outbound) = outbound {
-                    if outbound.peer.is_none() || outbound.peer == Some(id) {
-                        work.extend(requests.handle(Event::Unconfirmed(outbound.report), started.elapsed()));
+            queued = next_queued(&mut outgoing.queue), if requests.is_open() => {
+                let Some(queued) = queued else { return };
+                let actions = requests.handle(Event::Unconfirmed(queued.report), started.elapsed());
+                // A report that the protocol layer does not send is discarded: the negotiation does not allow it.
+                if !actions.iter().any(|action| matches!(action, Action::Send(_))) {
+                    shared.hub.discarded(queued.id, id, Discard::NotSent);
+                }
+                for action in actions {
+                    if matches!(action, Action::Send(_)) {
+                        outgoing.pending.push_back(queued.id);
+                        work.push_back((Some(queued.id), action));
+                    } else {
+                        work.push_back((None, action));
                     }
                 }
             }
             _ = stop.changed() => return,
         }
-        while let Some(action) = work.pop_front() {
+        while let Some((tag, action)) = work.pop_front() {
             match action {
                 Action::Send(tsdu) => {
                     if transport.send(tsdu).await.is_err() {
                         return;
                     }
+                    if let Some(message) = tag {
+                        outgoing.pending.pop_front();
+                        shared.hub.written(message, id);
+                    }
                 }
                 Action::ReleaseTransport => return,
+                Action::Association(AssocAction::Established(_)) => outgoing.open(),
                 Action::Association(AssocAction::Calling(identity)) => calling = Some(identity),
                 Action::Association(AssocAction::Indication(_)) => {
                     let peer = Peer {
@@ -528,10 +599,10 @@ async fn conduct<S: ByteStream>(
                     if accepted {
                         *admitted = Some(peer);
                     }
-                    work.extend(requests.handle(
+                    work.extend(untagged(requests.handle(
                         Event::Association(association::Event::Answer(answer)),
                         started.elapsed(),
-                    ));
+                    )));
                 }
                 Action::Indication { invoke, service } => {
                     let result = match admitted.as_ref() {
@@ -539,7 +610,9 @@ async fn conduct<S: ByteStream>(
                         // A service is served only on an admitted association.
                         None => Err(stopping()),
                     };
-                    work.extend(requests.handle(Event::Respond(invoke, result), started.elapsed()));
+                    work.extend(untagged(
+                        requests.handle(Event::Respond(invoke, result), started.elapsed()),
+                    ));
                 }
                 Action::Association(AssocAction::Concluded)
                 | Action::Association(AssocAction::Aborted(_)) => return,

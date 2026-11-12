@@ -30,6 +30,11 @@ The next release is **2.0.0**: the public types change (decision D-032).
   The `mMSString` of `TypeDescription` is the one such component. The decoder reads both forms under every
   profile (D-034).
 - The VMD checks that a `UtcTime` value of a described type is eight octets and valid.
+- Report delivery (D-036): `Server::publish_report` returns a `Publication` (the message identifier, the count
+  queued and refused); `Server::next_delivery` gives the outcome per association (`Delivery`: `Queued`,
+  `Refused` with `Refusal`, `Written`, `Discarded` with `Discard`); `Server::dropped_deliveries` counts the
+  outcomes the application did not take; `ServerConfig::report_queue` (`with_report_queue`) bounds each
+  association's queue.
 - `server::access`: `steps` reads the path of an alternate access (`AccessStep`: component, index, range,
   all elements), checked by its bounds (`PathError`). `ServerConfig::with_alternate_access` negotiates `valt`,
   so a model receives the requests that carry an alternate access (D-035). The generic VMD still refuses them.
@@ -43,6 +48,8 @@ The next release is **2.0.0**: the public types change (decision D-032).
   variants (`ClientConfig::profile`, `ServerConfig::profile`, `Tagging::Either`). Exhaustive matches and struct
   literals need an update.
 - A `TypeDescription` `mMSString` is read in its explicit or its implicit form (D-034).
+- **Changed (D-036)**: the reports of a server are queued per association, not broadcast. A slow association
+  refuses the reports it cannot hold, and each refusal is an outcome; before, its reports were dropped silently.
 
 ## [1.1.0] - 2026-11-08
 

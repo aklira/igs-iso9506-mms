@@ -972,6 +972,43 @@ silent, to be confirmed by an observation test against other implementations.
   reads the path of an item; the generic VMD refuses it; without `valt` the client's request is refused before
   it is sent; an empty range fails its item and the model reads nothing.
 
+### D-036 — The delivery of the reports: bounded queues per association, outcomes as events (task N5 of igs-iec61850-mms)
+
+- **Decision**: the server no longer broadcasts the reports. Each open association has a bounded queue of its
+  reports (`ServerConfig::report_queue`, 16 by default, at least one). A publication (`Server::publish_report`,
+  or the output of `Model::poll`) takes a `MessageId` and gives each association one outcome, without waiting:
+  `Delivery::Queued` (queued, in order), `Delivery::Refused` (`Saturated` when its queue is full, `NotOpen` when
+  it is not open), `Delivery::Written` (the transport took the bytes), `Delivery::Discarded` (the association
+  ended first, `AssociationEnded`; or the protocol layer did not send the report, `NotSent`). The outcomes come
+  from `Server::next_delivery`, in order. An outcome the application does not take in time is counted
+  (`Server::dropped_deliveries`), never lost without a count. `Server::publish` keeps its count of the
+  associations that queued the report.
+- **Why**: a `broadcast` channel drops the oldest report of a slow receiver, and the association's `Lagged`
+  error was ignored: a silent loss (MMS-009). Here the queue is per association, so a slow one fills its own
+  queue and is refused, and the publication does not wait for it (MMS-010). The queue is bounded, so the
+  memory is bounded (RUN-001). The order is the order of publication, per association.
+- **What the outcomes state**: local outcomes only. `Written` means that the transport accepted the bytes; it is
+  not a receipt by the peer. MMS has no acknowledgement of an unconfirmed PDU, and no outcome claims one
+  (MMS-009). A report is queued only for an association that is open: the queue opens when the association is
+  established (the AARE is written), so a report published earlier is refused as `NotOpen`.
+- **Association end**: the drop of the association's delivery state discards the reports still queued and the
+  reports handed to the protocol layer and not yet written (`AssociationEnded`), however the association ends
+  (release, abort, transport error). The unit test of `Outgoing` covers the drop; the end-to-end test covers the
+  closed association as a target.
+- **Compatibility**: `Server::publish` returns the same count as before. `Outbound` and `Model::poll` are unchanged.
+  The TASE.2 crate, which publishes through `Server::publish`, needs no change.
+- **Version**: the plan (N5) said 1.2.0; the removal of the broadcast and the new outcomes go with the 2.0.0 of
+  D-032 and D-033, so the changes are in the same unreleased series.
+- **Sources**: MMS-009 to MMS-011 of igs-iec61850-mms (SPECIFICATIONS §7.4), RUN-001 (bounded resources), MMS-010
+  (no indefinite blocking of other clients); ISO 9506-2 §8.1.3.14 (unconfirmed services).
+- **Confidence**: high for the queue, the order, the refusals and the discards, which the unit and end-to-end tests
+  observe; high for the local-only wording of `Written`; medium for the choice of 16 as the queue depth, which is a
+  default to tune with the load test (S4 measures the server under load).
+- **Test**: `server/delivery.rs` (5 unit tests: saturation, order, not open, end of association, counted
+  outcomes); `tests/delivery.rs` (5 end-to-end tests: saturation observable, order per association, a targeted
+  report reaches only its association and is written, a closed association is no longer a target, a zero queue
+  is a configuration error); `tests/server.rs` (the publication still counts one association).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |
