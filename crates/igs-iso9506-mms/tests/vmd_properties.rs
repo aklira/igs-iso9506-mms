@@ -42,7 +42,10 @@ proptest! {
     ) {
         prop_assert_eq!(
             Name::new(&text),
-            Err(NameError::TooLong { length: text.len() })
+            Err(NameError::TooLong {
+                length: text.len(),
+                limit: 32
+            })
         );
     }
 

@@ -17,6 +17,9 @@ The next release is **2.0.0**: the public types change (decision D-032).
   `Requests::set_string_limits` choose the limits; ISO 9506 by default, so the behaviour of the ISO 9506
   profile (TASE.2) is unchanged.
 - `CbbError::IdentifierLength` and `CbbError::DataString`.
+- `Vmd::with_identifier_limit` and `Vmd::identifier_limit`: the VMD of the IEC 61850 profile holds identifiers of up to 64
+  characters (D-037). `Vmd::name`, `Name::with_limit`, `Target::from_object_name`, `LARGEST_IDENTIFIER_LENGTH`,
+  `NameError::LimitOutOfRange`.
 - `mms::profile`: `Profile` (`TASE2`, `iec61850(Model)`), with the IEC 61850-8-1 clause 24 rules of the declared
   ACSI model: the nesting of six, the parameter CBBs (Table 128) and the services (Table 127) of each side
   (`required_parameters`, `required_services`, `check_parameters`, `check_services`, `check_nesting`).
@@ -48,6 +51,7 @@ The next release is **2.0.0**: the public types change (decision D-032).
   variants (`ClientConfig::profile`, `ServerConfig::profile`, `Tagging::Either`). Exhaustive matches and struct
   literals need an update.
 - A `TypeDescription` `mMSString` is read in its explicit or its implicit form (D-034).
+- **Breaking (D-037)**: `NameError::TooLong` carries the `limit` that applies. Exhaustive matches and patterns need `limit`.
 - **Changed (D-036)**: the reports of a server are queued per association, not broadcast. A slow association
   refuses the reports it cannot hold, and each refusal is an outcome; before, its reports were dropped silently.
 

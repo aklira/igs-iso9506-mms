@@ -375,6 +375,7 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 - **N3 — Typed UtcTime, MMSString and TypeDescription** by profile.
 - **N4 — Alternate access towards the model.**
 - **N5 — Observable outbound delivery**, then the 2.0.0 release prepared locally.
+- **N6 — The identifier limit of the VMD follows its profile** (D-037), for the flattened names of the IEC 61850 model (A3).
 
 ---
 
@@ -432,7 +433,8 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 | N2 IEC 61850 MMS profile | [x] |
 | N3 Typed UtcTime, MMSString and TypeDescription | [x] |
 | N4 Alternate access towards the model | [ ] |
-| N5 Observable outbound delivery | [ ] |
+| N5 Observable outbound delivery | [x] |
+| N6 VMD identifier limit by profile | [x] |
 
 Suggested order: P1–P4, F1, F2, F3, F4, F5, C1–C8, L1–L3, T1, L4, L5, L6, T2–T4, S1–S4, X1–X3, C9
 (in the background from C8 on), R1.

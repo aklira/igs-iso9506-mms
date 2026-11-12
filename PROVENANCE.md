@@ -1009,6 +1009,24 @@ silent, to be confirmed by an observation test against other implementations.
   report reaches only its association and is written, a closed association is no longer a target, a zero queue
   is a configuration error); `tests/server.rs` (the publication still counts one association).
 
+### D-037 — The identifier limit of a VMD follows its profile (task N6 of igs-iec61850-mms)
+
+- **Decision**: a VMD has an identifier limit. It is 32 by default, as ISO 9506 and TASE.2 need, so their behaviour is
+  unchanged. `Vmd::with_identifier_limit(limit)` raises it for the IEC 61850 profile, up to 64 (the largest identifier
+  of 8-1 Annex F.3.2, `LARGEST_IDENTIFIER_LENGTH`). The names of the VMD (`Vmd::name`, `Name::with_limit`), the
+  object names of the requests (`Target::from_object_name(object, limit)`), the continuation of GetNameList and the
+  domain names of the requests are checked with the limit of the VMD. `Name::new` keeps the ISO limit.
+- **Why**: the IEC 61850 names of the flattened variables (`LN$FC$DO$DA`) are longer than 32 characters (igs-iec61850-mms,
+  A3). The codec accepted 64 characters under the IEC profile since N1, but the VMD refused them with a service error
+  after the codec had accepted them. The capability row G9 said the IEC profile accepts them; that is true for the
+  codec and not for the server, and it is corrected.
+- **Breaking**: `NameError::TooLong` carries the `limit` that applies, and `NameError::LimitOutOfRange` is new.
+- **Consistency**: the limit of the VMD and the profile of the server (`ServerConfig::profile`) are set together by the
+  caller; the library does not check that they match. The IEC 61850 crate sets both.
+- **Sources**: ISO 9506-2 (identifiers of 32 characters, the ISO profile); IEC 61850-8-1 Annex F.3.2 (identifiers of 64).
+- **Confidence**: high. Tests: `vmd/name.rs` (a limit admits its profile's identifiers), `server/service.rs` (a name of 40
+  characters is served by a VMD with the IEC limit and refused by the default one).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

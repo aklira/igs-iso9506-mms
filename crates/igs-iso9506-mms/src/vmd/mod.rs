@@ -26,7 +26,7 @@ use igs_iso9506_mms_codec::generated::types::{
 };
 
 pub use conform::conforms;
-pub use name::{Name, NameError, Scope, Target, MAX_IDENTIFIER_LENGTH};
+pub use name::{Name, NameError, Scope, Target, LARGEST_IDENTIFIER_LENGTH, MAX_IDENTIFIER_LENGTH};
 pub use variable::{MemoryVariable, Variable};
 
 /// The classes of named objects that the model holds (ISO 9506-2 §7.4.2, Table 7).
@@ -133,6 +133,7 @@ struct Domain {
 /// The model of a VMD.
 pub struct Vmd {
     identity: Identity,
+    identifier_limit: usize,
     variables: BTreeMap<Name, Box<dyn Variable>>,
     lists: BTreeMap<Name, List>,
     domains: BTreeMap<Name, Domain>,
@@ -155,6 +156,7 @@ impl Vmd {
     pub fn new(identity: Identity) -> Self {
         Self {
             identity,
+            identifier_limit: MAX_IDENTIFIER_LENGTH,
             variables: BTreeMap::new(),
             lists: BTreeMap::new(),
             domains: BTreeMap::new(),
@@ -164,6 +166,27 @@ impl Vmd {
     /// The identity of the VMD.
     pub fn identity(&self) -> &Identity {
         &self.identity
+    }
+
+    /// The longest identifier of the objects of the VMD: 32 under the ISO 9506 profile, which is the default.
+    pub fn identifier_limit(&self) -> usize {
+        self.identifier_limit
+    }
+
+    /// Sets the identifier limit of the VMD for the profile it serves, up to [`LARGEST_IDENTIFIER_LENGTH`] (the
+    /// IEC 61850 profile; task N6). Set it before the objects are added, since their names are checked when they
+    /// are made.
+    pub fn with_identifier_limit(mut self, limit: usize) -> Result<Self, NameError> {
+        if !(1..=LARGEST_IDENTIFIER_LENGTH).contains(&limit) {
+            return Err(NameError::LimitOutOfRange(limit));
+        }
+        self.identifier_limit = limit;
+        Ok(self)
+    }
+
+    /// The name of an object of this VMD, checked against its identifier limit.
+    pub fn name(&self, text: &str) -> Result<Name, NameError> {
+        Name::with_limit(text, self.identifier_limit)
     }
 
     /// Adds a domain, at the VMD scope.

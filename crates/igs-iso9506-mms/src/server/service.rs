@@ -89,12 +89,14 @@ fn identifier(name: &Name) -> Identifier {
     Identifier(name.as_str().to_string())
 }
 
-fn name(identifier: &Identifier) -> Result<Name, ModelError> {
-    Name::new(&identifier.0).map_err(ModelError::from)
+/// The name of an identifier, checked against the identifier limit `limit` of the VMD.
+fn name(limit: usize, identifier: &Identifier) -> Result<Name, ModelError> {
+    Name::with_limit(&identifier.0, limit).map_err(ModelError::from)
 }
 
-fn target(object: &ObjectName) -> Result<Target, ModelError> {
-    Target::try_from(object).map_err(ModelError::from)
+/// The target of an object name, checked against the identifier limit `limit` of the VMD.
+fn target(limit: usize, object: &ObjectName) -> Result<Target, ModelError> {
+    Target::from_object_name(object, limit).map_err(ModelError::from)
 }
 
 fn identify(vmd: &Vmd) -> ConfirmedServiceResponse {
@@ -122,10 +124,12 @@ fn class_of(class: &ObjectClass) -> Result<Class, ModelError> {
     }
 }
 
-fn scope_of(scope: &GetNameListRequestObjectScope) -> Result<Scope, ModelError> {
+fn scope_of(limit: usize, scope: &GetNameListRequestObjectScope) -> Result<Scope, ModelError> {
     match scope {
         GetNameListRequestObjectScope::VmdSpecific => Ok(Scope::Vmd),
-        GetNameListRequestObjectScope::DomainSpecific(domain) => Ok(Scope::Domain(name(domain)?)),
+        GetNameListRequestObjectScope::DomainSpecific(domain) => {
+            Ok(Scope::Domain(name(limit, domain)?))
+        }
         GetNameListRequestObjectScope::AaSpecific => Err(ModelError::Unsupported),
     }
 }
@@ -135,11 +139,11 @@ fn get_name_list(
     request: &GetNameListRequest,
 ) -> Result<GetNameListResponse, ServiceError> {
     let class = class_of(&request.object_class).map_err(service)?;
-    let scope = scope_of(&request.object_scope).map_err(service)?;
+    let scope = scope_of(vmd.identifier_limit(), &request.object_scope).map_err(service)?;
     let after = request
         .continue_after
         .as_ref()
-        .map(name)
+        .map(|identifier| name(vmd.identifier_limit(), identifier))
         .transpose()
         .map_err(service)?;
     let page = vmd
@@ -157,13 +161,15 @@ fn read(vmd: &Vmd, request: &ReadRequest) -> Result<ReadResponse, ServiceError> 
             .iter()
             .map(
                 |item| match (&item.variable_specification, &item.alternate_access) {
-                    (VariableSpecification::Name(object), None) => match target(object) {
-                        Ok(target) => match vmd.read(&target) {
-                            Ok(data) => AccessResult::Success(data),
-                            Err(error) => AccessResult::Failure(error),
-                        },
-                        Err(error) => AccessResult::Failure(error.data_access_error()),
-                    },
+                    (VariableSpecification::Name(object), None) => {
+                        match target(vmd.identifier_limit(), object) {
+                            Ok(target) => match vmd.read(&target) {
+                                Ok(data) => AccessResult::Success(data),
+                                Err(error) => AccessResult::Failure(error),
+                            },
+                            Err(error) => AccessResult::Failure(error.data_access_error()),
+                        }
+                    }
                     // Addresses, descriptions and alternate access are not served (the CBBs are not
                     // negotiated for them).
                     _ => AccessResult::Failure(DataAccessError::OBJECT_ACCESS_UNSUPPORTED),
@@ -171,7 +177,7 @@ fn read(vmd: &Vmd, request: &ReadRequest) -> Result<ReadResponse, ServiceError> 
             )
             .collect(),
         VariableAccessSpecification::VariableListName(object) => {
-            let list = target(object).map_err(service)?;
+            let list = target(vmd.identifier_limit(), object).map_err(service)?;
             vmd.read_list(&list).map_err(service)?
         }
     };
@@ -190,14 +196,15 @@ fn write(vmd: &mut Vmd, request: &WriteRequest) -> Result<WriteResponse, Service
             .map(
                 |item| match (&item.variable_specification, &item.alternate_access) {
                     (VariableSpecification::Name(object), None) => {
-                        target(object).map_err(|error| error.data_access_error())
+                        target(vmd.identifier_limit(), object)
+                            .map_err(|error| error.data_access_error())
                     }
                     _ => Err(DataAccessError::OBJECT_ACCESS_UNSUPPORTED),
                 },
             )
             .collect(),
         VariableAccessSpecification::VariableListName(object) => {
-            let list = target(object).map_err(service)?;
+            let list = target(vmd.identifier_limit(), object).map_err(service)?;
             vmd.list_members(&list)
                 .map_err(service)?
                 .iter()
@@ -233,7 +240,7 @@ fn get_variable_access_attributes(
     let GetVariableAccessAttributesRequest::Name(object) = request else {
         return Err(unsupported_service());
     };
-    let target = target(object).map_err(service)?;
+    let target = target(vmd.identifier_limit(), object).map_err(service)?;
     let type_description = vmd.type_description(&target).map_err(service)?.clone();
     Ok(GetVariableAccessAttributesResponse {
         // Named variables of this model are static: they are not deletable by MMS services.
@@ -249,13 +256,15 @@ fn define_named_variable_list(
     vmd: &mut Vmd,
     request: &igs_iso9506_mms_codec::generated::types::DefineNamedVariableListRequest,
 ) -> Result<(), ServiceError> {
-    let list = target(&request.variable_list_name).map_err(service)?;
+    let list = target(vmd.identifier_limit(), &request.variable_list_name).map_err(service)?;
     let members = request
         .list_of_variable
         .iter()
         .map(
             |item| match (&item.variable_specification, &item.alternate_access) {
-                (VariableSpecification::Name(object), None) => target(object),
+                (VariableSpecification::Name(object), None) => {
+                    target(vmd.identifier_limit(), object)
+                }
                 _ => Err(ModelError::Unsupported),
             },
         )
@@ -268,7 +277,7 @@ fn get_named_variable_list_attributes(
     vmd: &Vmd,
     request: &GetNamedVariableListAttributesRequest,
 ) -> Result<GetNamedVariableListAttributesResponse, ServiceError> {
-    let list = target(&request.0).map_err(service)?;
+    let list = target(vmd.identifier_limit(), &request.0).map_err(service)?;
     let members = vmd.list_members(&list).map_err(service)?;
     Ok(GetNamedVariableListAttributesResponse {
         // A list is defined by the MMS client, so it may be deleted by MMS services.
@@ -301,7 +310,7 @@ fn delete_named_variable_list(
             .list_of_variable_list_name
             .iter()
             .flatten()
-            .map(target)
+            .map(|object| target(vmd.identifier_limit(), object))
             .collect::<Result<Vec<Target>, ModelError>>()
             .map_err(service)?
     } else if scope == DeleteNamedVariableListRequestScopeOfDelete::DOMAIN.0 {
@@ -309,7 +318,7 @@ fn delete_named_variable_list(
             .domain_name
             .as_ref()
             .ok_or_else(inconsistent)
-            .and_then(|domain| name(domain).map_err(service))?;
+            .and_then(|domain| name(vmd.identifier_limit(), domain).map_err(service))?;
         let domain_scope = Scope::Domain(domain.clone());
         vmd.page(Class::NamedVariableList, &domain_scope, None, usize::MAX)
             .map_err(service)?
@@ -340,4 +349,74 @@ fn delete_named_variable_list(
         number_matched: Unsigned32(matched),
         number_deleted: Unsigned32(matched),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use igs_iso9506_mms_codec::generated::types::{
+        ConfirmedServiceRequest, ConfirmedServiceResponse, Data,
+        GetVariableAccessAttributesRequest, Identifier, ObjectName, ObjectNameDomainSpecific,
+        TypeDescription,
+    };
+
+    use super::dispatch;
+    use crate::vmd::{Identity, MemoryVariable, Name, Target, Vmd};
+
+    fn identity() -> Identity {
+        Identity {
+            vendor: "igs".to_string(),
+            model: "service".to_string(),
+            revision: "1".to_string(),
+        }
+    }
+
+    /// A VMD with the domain `D`, and with a variable of the identifier `item` when the limit admits it.
+    fn vmd(limit: usize, item: &str) -> Vmd {
+        let mut vmd = Vmd::new(identity())
+            .with_identifier_limit(limit)
+            .expect("a limit of the profile");
+        vmd.add_domain(Name::new("D").expect("a name"))
+            .expect("a new domain");
+        if let Ok(name) = vmd.name(item) {
+            let target = Target::in_domain(Name::new("D").expect("a name"), name);
+            let variable =
+                MemoryVariable::new(TypeDescription::Boolean, Data::Boolean(false), false)
+                    .expect("a value of its type");
+            vmd.add_variable(&target, Box::new(variable))
+                .expect("a new variable");
+        }
+        vmd
+    }
+
+    fn describe(item: &str) -> ConfirmedServiceRequest {
+        ConfirmedServiceRequest::GetVariableAccessAttributes(
+            GetVariableAccessAttributesRequest::Name(ObjectName::DomainSpecific(
+                ObjectNameDomainSpecific {
+                    domain_id: Identifier("D".to_string()),
+                    item_id: Identifier(item.to_string()),
+                },
+            )),
+        )
+    }
+
+    #[test]
+    fn a_vmd_with_the_iec_limit_serves_a_name_of_40_characters() {
+        let item = "a".repeat(40);
+        let mut vmd = vmd(64, &item);
+        let answer = dispatch(&mut vmd, describe(&item));
+        assert!(
+            matches!(
+                answer,
+                Ok(ConfirmedServiceResponse::GetVariableAccessAttributes(_))
+            ),
+            "found {answer:?}"
+        );
+    }
+
+    #[test]
+    fn the_iso_limit_refuses_the_same_name() {
+        let item = "a".repeat(40);
+        let mut vmd = vmd(32, &item);
+        assert!(dispatch(&mut vmd, describe(&item)).is_err());
+    }
 }

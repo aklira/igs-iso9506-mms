@@ -47,7 +47,7 @@ Each gap is described in the section that found it; this index gives its status.
 | G6 | Not a defect: Wireshark reads the release as a zero-byte MMS PDU | Gaps |
 | G7 | Fixed (T3): the extra bits of the peer's Initiate response are ignored | Gaps; T3 |
 | G8 | Open. Observed on the reference server of the IEC 61850 bench (N2): it negotiates no parameter CBB (`0000`) and serves logical nodes. Under the IEC 61850 profile it is refused, naming `str2`; under the lenient option it is accepted and serves 304 variables. D-033 | Gaps; T3, T4; D-033 |
-| G9 | Decoded since D-032 (identifiers of up to 64 characters); refused by the ISO 9506 profile, accepted by the IEC 61850 profile (task N2 of igs-iec61850-mms) | Gaps; T3; D-032 |
+| G9 | Decoded since D-032 (identifiers of up to 64 characters); refused by the ISO 9506 profile. The IEC 61850 profile accepts them on the wire, and the VMD serves them once its identifier limit is set to 64 (`Vmd::with_identifier_limit`, D-037); by default the VMD still refuses them | Gaps; T3; D-032; D-037 |
 | G10 | Open: data nested deeper than negotiated; the command line proposes 6, the library 2 | Gaps; T3 |
 | G11 | Open: a data tag of a later edition, kept raw | Gaps; T3 |
 | G12 | Open: the peer refuses a domain-scope named variable list | S4 matrix; Client matrix |
