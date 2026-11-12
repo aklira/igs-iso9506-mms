@@ -46,12 +46,23 @@ const LENIENT: [&str; 5] = [
 /// Types whose constraint is not checked: the edition read fixes the size of the CBB bit
 /// strings, while a peer of an earlier version sends fewer bits (85 and 11 on the bench, task F5).
 /// Task C7 settles their reading.
-const UNCHECKED: [&str; 4] = [
+///
+/// `DataMMSString` is the `mMSString` alternative of `Data` in the IEC 61850 union (IEC 61850-8-1
+/// Annex F.3.3): its size of 0 to 255 belongs to the IEC 61850 profile and is checked apart, with the
+/// identifiers, by the string walk of the link (D-031).
+const UNCHECKED: [&str; 5] = [
     "ServiceSupportOptions",
     "ParameterSupportOptions",
     "AdditionalSupportOptions",
     "AdditionalCBBOptions",
+    "DataMMSString",
 ];
+
+/// Members kept with the tagging of ISO 9506-2 although the IEC 61850 union changes it: IEC 61850-8-1
+/// Annex F.1 makes `mMSString` of `TypeDescription` implicit, while ISO 9506-2 leaves it explicit (the
+/// module tags explicitly by default). The codec keeps the ISO form until the profile chooses the
+/// encoding (task N3 of igs-iec61850-mms; D-031).
+const ISO_TAGGING: [(&str, &str); 1] = [("TypeDescription", "mMSString")];
 
 /// Types read in their ELSE branch: the profile has no `char` CBB (IEC 60870-6-702 table A.19), so
 /// these strings are VisibleStrings (ISO 9506-2 §7.5.2, §7.5.6), not the UTF8Strings of the IF
@@ -450,11 +461,17 @@ impl<'a> Generator<'a> {
             (None, true) => "Presence::Optional".to_owned(),
             (None, false) => "Presence::Required".to_owned(),
         };
+        let mut tag = self.effective(member.ty.tag, &member.ty)?;
+        if ISO_TAGGING.contains(&(asn, member.name.as_str())) {
+            if let Some(t) = tag.as_mut() {
+                t.tagging = Tagging::Explicit;
+            }
+        }
         Ok(Field {
             asn: member.name.clone(),
             name: snake(&member.name),
             rust,
-            tag: self.effective(member.ty.tag, &member.ty)?,
+            tag,
             presence,
             idents: self.idents(&member.ty)?,
         })
@@ -682,12 +699,120 @@ impl<'a> Generator<'a> {
             emit_item(self, &mut o, name, item)?;
             emit_codec(self, &mut o, name, item)?;
             emit_strategy(self, &mut o, name, item)?;
+            emit_walk(self, &mut o, name, item)?;
         }
         for (name, idents) in &self.opaque {
             emit_opaque(&mut o, name, idents)?;
         }
         Ok(o)
     }
+}
+
+/// Strings checked against the profile apart from the codec (D-031): the identifiers, whose size the
+/// union widens to 64, and the `mMSString` of `Data`, a UTF-8 string in the union.
+const WALKED: [&str; 2] = ["Identifier", "DataMMSString"];
+
+impl Generator<'_> {
+    /// Whether a value of `from` can hold one of the walked strings, through lists too.
+    fn holds_walked(&self, from: &str) -> bool {
+        let mut stack = vec![from.to_owned()];
+        let mut visited = BTreeSet::new();
+        while let Some(name) = stack.pop() {
+            if WALKED.contains(&name.as_str()) {
+                return true;
+            }
+            if visited.insert(name.clone()) {
+                stack.extend(self.references(&name));
+            }
+        }
+        false
+    }
+
+    fn rust_holds_walked(&self, rust: &Rust) -> bool {
+        match rust {
+            Rust::Named(n) => self.holds_walked(n),
+            Rust::List(inner) => self.rust_holds_walked(inner),
+            _ => false,
+        }
+    }
+}
+
+/// The statement that walks a value of `rust` held in `expr`: a place such as `self.field` when
+/// `place`, else a reference.
+fn walk_text(rust: &Rust, expr: &str, place: bool) -> String {
+    let borrow = if place { "&" } else { "" };
+    match rust {
+        Rust::Named(_) => format!("{expr}.walk_strings(f)?;"),
+        Rust::List(inner) => format!(
+            "for item in {borrow}{expr} {{ {} }}",
+            walk_text(inner, "item", false)
+        ),
+        _ => String::new(),
+    }
+}
+
+/// `walk_strings`: calls `f` on every walked string of a value, in encoding order. Emitted only for
+/// the types that can hold one. The depth follows the decoded value, whose nesting the decoder bounds.
+fn emit_walk(g: &Generator, o: &mut String, name: &str, item: &Item) -> Result<(), Fail> {
+    if !g.holds_walked(name) {
+        return Ok(());
+    }
+    writeln!(o, "impl {name} {{")?;
+    writeln!(
+        o,
+        "    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order."
+    )?;
+    writeln!(
+        o,
+        "    pub fn walk_strings<E>(&self, f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>) -> Result<(), E> {{"
+    )?;
+    match &item.body {
+        Body::Newtype { inner, .. } => match name {
+            "Identifier" => writeln!(o, "f(crate::mms::Walked::Identifier(&self.0))?;")?,
+            "DataMMSString" => writeln!(o, "f(crate::mms::Walked::DataMmsString(&self.0))?;")?,
+            _ => writeln!(o, "{}", walk_text(inner, "self.0", true))?,
+        },
+        Body::Struct(fields) => {
+            for field in fields.iter().filter(|f| g.rust_holds_walked(&f.rust)) {
+                let expr = format!("self.{}", field.name);
+                if field.presence == "Presence::Required" {
+                    writeln!(o, "{}", walk_text(&field.rust, &expr, true))?;
+                } else {
+                    writeln!(
+                        o,
+                        "if let Some(value) = &{expr} {{ {} }}",
+                        walk_text(&field.rust, "value", false)
+                    )?;
+                }
+            }
+        }
+        Body::Enum {
+            alternatives,
+            unsupported,
+        } => {
+            let walked: Vec<&Field> = alternatives
+                .iter()
+                .filter(|f| g.rust_holds_walked(&f.rust))
+                .collect();
+            if !walked.is_empty() {
+                writeln!(o, "#[allow(clippy::single_match)]\nmatch self {{")?;
+                for field in &walked {
+                    writeln!(
+                        o,
+                        "Self::{}(value) => {{ {} }}",
+                        camel(&field.asn),
+                        walk_text(&field.rust, "value", false)
+                    )?;
+                }
+                if walked.len() < alternatives.len() || unsupported.is_some() {
+                    writeln!(o, "_ => {{}}")?;
+                }
+                writeln!(o, "}}")?;
+            }
+        }
+    }
+    writeln!(o, "Ok(())\n    }}\n}}\n")?;
+    Ok(())
 }
 
 /// The first context tag number after those of `idents`.

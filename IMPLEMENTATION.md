@@ -364,6 +364,18 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
   similarity check against libiec61850, crates.io names, git push and tag.
 - Done when: a maintainer approves and publishes 1.0.0.
 
+### Phase 6 — IEC 61850 profile (tasks N1 to N5 of `igs-iec61850-mms`)
+
+The tasks are defined in `~/Dev/igs-iec61850-mms/IMPLEMENTATION.md` (phase N) and made here, under the
+rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-iec-tase2` stays green.
+
+- **N1 — Generator input and codec union**: the union of ISO 9506 and IEC 61850-8-1 Annex F, the
+  strings checked per profile (D-031).
+- **N2 — IEC 61850 MMS profile**: limits, nesting, CBBs and services of IEC 61850-8-1 clause 24.
+- **N3 — Typed UtcTime, MMSString and TypeDescription** by profile.
+- **N4 — Alternate access towards the model.**
+- **N5 — Observable outbound delivery**, then the 2.0.0 release prepared locally.
+
 ---
 
 ## 5. Definition of "ready to use" (1.0)
@@ -416,6 +428,11 @@ Each task lists: **Depends**, **Read**, **Produce**, **Done when**.
 | X2 Documentation and examples | [x] |
 | X3 Supported service matrix | [x] |
 | R1 Legal review and release ⛔ | [ ] |
+| N1 Generator input and codec union | [x] |
+| N2 IEC 61850 MMS profile | [ ] |
+| N3 Typed UtcTime, MMSString and TypeDescription | [ ] |
+| N4 Alternate access towards the model | [ ] |
+| N5 Observable outbound delivery | [ ] |
 
 Suggested order: P1–P4, F1, F2, F3, F4, F5, C1–C8, L1–L3, T1, L4, L5, L6, T2–T4, S1–S4, X1–X3, C9
 (in the background from C8 on), R1.

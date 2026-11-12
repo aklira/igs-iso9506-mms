@@ -834,6 +834,37 @@ silent, to be confirmed by an observation test against other implementations.
 - **Test material**: `tests/fixtures/tls` (the leaf keys are test-only; the roots' keys were discarded by
   `generate.sh`).
 
+### D-031 — The codec reads the IEC 61850 union; the profile narrows its strings (task N1 of igs-iec61850-mms)
+
+- **Decision**: the generator reads the MMS modules with the four extensions of IEC 61850-8-1 Annex F
+  applied (`variante_61850`, built in the private repository): `utc-time` [17] in `Data` (an `UtcTime` of 8
+  octets) and in `TypeDescription`, identifiers of 1 to 64 characters, the `pdu-size` service error (value 3
+  of the service class), and a `Data` MMS string that is a UTF8String. The codec decodes and encodes this
+  union. Two widenings would relax the ISO 9506 profile of TASE.2, so they are checked apart, as the CBBs
+  are (D-013): the generated `walk_strings` reaches every identifier and every `Data` MMS string of a PDU,
+  and `mms::check_strings` applies `StringLimits` (ISO 9506: 32 characters, VisibleString; IEC 61850: 64
+  characters, UTF-8 of at most 255 characters). The association runs it after the CBB check on every PDU
+  sent and received, with the ISO 9506 limits by default (`set_string_limits`); task N2 sets the IEC 61850
+  ones in its profile.
+- **Kept as before**: `mMSString` of `TypeDescription` stays explicitly tagged, as ISO 9506-2 has it;
+  Annex F.1 makes it implicit, a change of the encoding left to the profile (task N3). The `MMSString`
+  type of the other places stays a VisibleString: some uses are untagged, and a UTF8String would change
+  their universal tag. A `Data` tag past the union ([18] on) is still kept raw.
+- **Why**: one codec for both profiles, as for the directives (D-013), without relaxing a check for the
+  users of the ISO 9506 profile (requirement ARCH-002 of igs-iec61850-mms). The bench of
+  igs-iec61850-mms showed identifiers of 39 characters from an IEC 61850 server (gap G9).
+- **Compatibility**: `Data` and `TypeDescription` gain an alternative, and `Data::MMSString` carries a
+  `DataMMSString`: a breaking change of the public API, so the next release is 2.0.0 (CHANGELOG).
+  `igs-iec-tase2` needed one match arm.
+- **Sources**: IEC 61850-8-1:2011+AMD1:2020 Annex F (F.2.2, F.3.1 to F.3.4), §24.2.2.2; ISO 9506-2 §7.5.2,
+  §14.4.2; the variant and its decisions in `norm_preparation` (CONTEXT §19).
+- **Confidence**: high for the union and the ISO limits, which keep every test of this repository and of
+  `igs-iec-tase2` green; medium for counting the 255 of the `Data` MMS string in characters, as ASN.1 size
+  constraints of a UTF8String do (8-1 §8.1.2.6 counts Unicode characters too).
+- **Test**: `crates/igs-iso9506-mms-codec/tests/string_limits.rs`, `tests/common_types.rs`,
+  `tests/mms_pdus.rs` (the UTC time of the bench peer, now typed), the unit test
+  `identifiers_are_checked_against_the_profile_after_the_cbbs` of the association.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

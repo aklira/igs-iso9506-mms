@@ -258,14 +258,15 @@ pub fn unsupported(from: u32, used: &'static [u32]) -> BoxedStrategy<(u32, RawBe
         .boxed()
 }
 
-/// Identifiers: 1 to 32 letters, digits, `$` and `_` (ISO 9506-2 §7.5.2).
+/// Identifiers: 1 to 64 letters, digits, `$` and `_`: the union of ISO 9506-2 §7.5.2 and IEC
+/// 61850-8-1 Annex F.3.2 that the codec reads (D-031).
 pub fn identifier() -> BoxedStrategy<String> {
     let alphabet: Vec<char> = ('a'..='z')
         .chain('A'..='Z')
         .chain('0'..='9')
         .chain(['$', '_'])
         .collect();
-    vec(select(alphabet), 1..=32)
+    vec(select(alphabet), 1..=64)
         .prop_map(|chars| chars.into_iter().collect())
         .boxed()
 }

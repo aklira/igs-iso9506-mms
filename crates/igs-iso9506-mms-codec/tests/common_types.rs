@@ -18,10 +18,10 @@
 use igs_iso9506_mms_codec::asn::{self, Codec, Error};
 use igs_iso9506_mms_codec::ber;
 use igs_iso9506_mms_codec::mms::{
-    AccessResult, Data, DataAccessError, FloatingPoint, Identifier, Integer16, Integer32, Integer8,
-    MMSString, ObjectName, ObjectNameDomainSpecific, TimeOfDay, TypeDescription,
+    AccessResult, Data, DataAccessError, DataMMSString, FloatingPoint, Identifier, Integer16,
+    Integer32, Integer8, ObjectName, ObjectNameDomainSpecific, TimeOfDay, TypeDescription,
     TypeDescriptionArray, TypeDescriptionFloatingPoint, TypeDescriptionStructure,
-    TypeDescriptionStructureComponentsItem, TypeSpecification, Unsigned32, Unsigned8,
+    TypeDescriptionStructureComponentsItem, TypeSpecification, Unsigned32, Unsigned8, UtcTime,
     MAX_MILLISECONDS,
 };
 use igs_iso9506_mms_codec::schema::{BitString, ObjectIdentifier};
@@ -160,7 +160,19 @@ fn every_alternative_of_data() {
         ),
         (
             tlv(0x90, &[b"MMS string"]),
-            Data::MMSString(MMSString("MMS string".into())),
+            Data::MMSString(DataMMSString("MMS string".into())),
+        ),
+        (
+            // IEC 61850-8-1 Annex F.3.1: utc-time [17], 8 octets.
+            tlv(0x91, &[&[0x5F, 0x3E, 0x2D, 0x80, 0x80, 0x00, 0x00, 0x0A]]),
+            Data::UtcTime(UtcTime(vec![
+                0x5F, 0x3E, 0x2D, 0x80, 0x80, 0x00, 0x00, 0x0A,
+            ])),
+        ),
+        (
+            // Annex F.3.3: the MMS string of Data is a UTF8String in the union (D-031).
+            tlv(0x90, &["é€".as_bytes()]),
+            Data::MMSString(DataMMSString("é€".into())),
         ),
     ];
     for (bytes, data) in &cases {
@@ -184,11 +196,28 @@ fn every_alternative_of_data() {
     }
     // A visible string holds printable ASCII only.
     assert!(asn::decode_value::<Data>(&tlv(0x8A, &[&[0x07]])).is_err());
+    // A UTC time has exactly 8 octets.
+    for length in [7, 9] {
+        assert!(asn::decode_value::<Data>(&tlv(0x91, &[&vec![0; length]])).is_err());
+    }
+    // Tag [18] is past the union: kept as received.
+    assert!(matches!(
+        asn::decode_value::<Data>(&tlv(0x92, &[&[0]])),
+        Ok(Data::Unsupported { tag: 18, .. })
+    ));
 }
 
 #[test]
 fn identifiers() {
-    for text in ["a", "LLN0$ST$Mod$stVal", "_9", &"x".repeat(32)] {
+    // The codec reads the union: up to 64 characters (IEC 61850-8-1 Annex F.3.2); a profile narrows
+    // it, see tests/string_limits.rs (D-031).
+    for text in [
+        "a",
+        "LLN0$ST$Mod$stVal",
+        "_9",
+        &"x".repeat(32),
+        &"x".repeat(64),
+    ] {
         let id = Identifier::new(text.into()).unwrap();
         round_trip::<Identifier>(&tlv(0x1A, &[text.as_bytes()]), &id);
     }
@@ -197,7 +226,7 @@ fn identifiers() {
         Err(Error::WrongSize { ty: "Identifier" })
     );
     assert_eq!(
-        Identifier::new("x".repeat(33)),
+        Identifier::new("x".repeat(65)),
         Err(Error::WrongSize { ty: "Identifier" })
     );
     for bad in ["a-b", "a b", "é", "a.b"] {
@@ -314,6 +343,8 @@ fn type_specifications() {
         &TypeDescription::MMSString(Integer32(64)),
     );
     round_trip::<TypeDescription>(&tlv(0x83, &[]), &TypeDescription::Boolean);
+    // utc-time [17] is an implicit NULL (IEC 61850-8-1 Annex F.2.2).
+    round_trip::<TypeDescription>(&tlv(0x91, &[]), &TypeDescription::UtcTime);
     // A bit size of 128 is beyond Unsigned8.
     assert!(asn::decode_value::<TypeDescription>(&tlv(0x85, &[&[0x00, 0x80]])).is_err());
 }

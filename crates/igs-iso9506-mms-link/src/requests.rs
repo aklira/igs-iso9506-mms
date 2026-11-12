@@ -188,6 +188,12 @@ impl Requests {
         self.association.set_lenient_parameter_cbbs(on);
     }
 
+    /// Sets the limits of the profile on identifiers and on the MMS string of `Data` (see
+    /// [`association::Association::set_string_limits`]).
+    pub fn set_string_limits(&mut self, limits: igs_iso9506_mms_codec::mms::StringLimits) {
+        self.association.set_string_limits(limits);
+    }
+
     /// Whether the association is established.
     pub fn is_open(&self) -> bool {
         self.association.is_open()

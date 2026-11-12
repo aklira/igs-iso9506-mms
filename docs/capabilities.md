@@ -47,7 +47,7 @@ Each gap is described in the section that found it; this index gives its status.
 | G6 | Not a defect: Wireshark reads the release as a zero-byte MMS PDU | Gaps |
 | G7 | Fixed (T3): the extra bits of the peer's Initiate response are ignored | Gaps; T3 |
 | G8 | Open: the peer negotiates no parameter CBB yet serves the services that need them; conformant by default, option `lenient` | Gaps; T3, T4 |
-| G9 | Open: identifiers over 32 characters from the peer (IEC 61850 names) | Gaps; T3 |
+| G9 | Decoded since D-031 (identifiers of up to 64 characters); refused by the ISO 9506 profile, accepted by the IEC 61850 profile (task N2 of igs-iec61850-mms) | Gaps; T3; D-031 |
 | G10 | Open: data nested deeper than negotiated; the command line proposes 6, the library 2 | Gaps; T3 |
 | G11 | Open: a data tag of a later edition, kept raw | Gaps; T3 |
 | G12 | Open: the peer refuses a domain-scope named variable list | S4 matrix; Client matrix |

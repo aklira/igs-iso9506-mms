@@ -362,7 +362,8 @@ fn environment_pdus() {
     );
 }
 
-/// ISO 9506 defines no `[17]` in Data; the bench peer sends one (a UTC time of IEC 61850): kept.
+/// ISO 9506 defines no `[17]` in Data; the bench peer sends one, a UTC time of IEC 61850: the union
+/// of the codec reads it typed (IEC 61850-8-1 Annex F.3.1, D-031). A tag past the union is kept.
 #[test]
 fn data_beyond_the_last_alternative_is_kept() {
     let utc = tlv(0x91, &[&[0x6A, 0xEF, 0x08, 0x32, 0x58, 0x10, 0x62, 0x00]]);
@@ -381,12 +382,17 @@ fn data_beyond_the_last_alternative_is_kept() {
     };
     assert_eq!(
         read.list_of_access_result,
-        [AccessResult::Success(Data::Array(vec![
-            Data::Unsupported {
-                tag: 17,
-                raw: RawBer(utc.clone())
-            }
-        ]))]
+        [AccessResult::Success(Data::Array(vec![Data::UtcTime(
+            UtcTime(vec![0x6A, 0xEF, 0x08, 0x32, 0x58, 0x10, 0x62, 0x00])
+        )]))]
+    );
+    let beyond = tlv(0x92, &[&[0x01]]);
+    assert_eq!(
+        igs_iso9506_mms_codec::asn::decode_value::<Data>(&beyond).unwrap(),
+        Data::Unsupported {
+            tag: 18,
+            raw: RawBer(beyond.clone())
+        }
     );
     let pdu = MMSpdu::ConfirmedResponsePDU(response);
     assert_eq!(mms::decode(&mms::encode(&pdu).unwrap()).unwrap(), pdu);

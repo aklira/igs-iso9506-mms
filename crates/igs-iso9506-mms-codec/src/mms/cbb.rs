@@ -132,6 +132,18 @@ pub enum CbbError {
         /// The negotiated level.
         limit: i64,
     },
+    /// An identifier longer than the profile allows (D-031).
+    IdentifierLength {
+        /// Characters of the identifier.
+        length: usize,
+        /// Largest number the profile allows.
+        limit: usize,
+    },
+    /// A `Data` MMS string that the profile does not allow (D-031).
+    DataString {
+        /// What is wrong.
+        reason: &'static str,
+    },
 }
 
 impl fmt::Display for CbbError {
@@ -143,6 +155,13 @@ impl fmt::Display for CbbError {
             Self::Nesting { depth, limit } => {
                 write!(f, "nesting of {depth} levels, above the negotiated {limit}")
             }
+            Self::IdentifierLength { length, limit } => {
+                write!(
+                    f,
+                    "identifier of {length} characters, above the {limit} of the profile"
+                )
+            }
+            Self::DataString { reason } => write!(f, "MMS string of Data {reason}"),
         }
     }
 }

@@ -138,7 +138,8 @@ fn tags_follow_the_tagging_rules() {
 /// An extension marker does not stop the reading of a CHOICE or a SEQUENCE.
 #[test]
 fn components_after_extension_markers_are_kept() {
-    assert_eq!(Data::ALTERNATIVES.last().unwrap().tag.unwrap().number, 16);
+    // utc-time [17] follows mMSString [16] after the marker (IEC 61850-8-1 Annex F.3.1, D-031).
+    assert_eq!(Data::ALTERNATIVES.last().unwrap().tag.unwrap().number, 17);
     let last = AARQApdu::COMPONENTS.last().unwrap();
     assert_eq!(last.tag.unwrap().number, 30);
     assert_eq!(last.presence, Presence::Optional);
@@ -155,7 +156,8 @@ fn constraints_are_kept() {
 
 #[test]
 fn type_count_is_stable() {
-    assert_eq!(TYPE_COUNT, 143);
+    // 143 of ISO 9506 and ACSE, plus `UtcTime` and `DataMMSString` of the IEC 61850 union (D-031).
+    assert_eq!(TYPE_COUNT, 145);
 }
 
 /// Constraints without an extension marker are checked by `new`, on decoding and on encoding.

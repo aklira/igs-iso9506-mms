@@ -24,7 +24,7 @@ use crate::schema::{
 use proptest::strategy::Strategy as _;
 
 /// Number of generated types.
-pub const TYPE_COUNT: usize = 143;
+pub const TYPE_COUNT: usize = 145;
 
 /// ASN.1 type `AARE-apdu`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1931,6 +1931,23 @@ impl crate::strategy::Values for AccessResult {
     }
 }
 
+impl AccessResult {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Success(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `AdditionalCBBOptions`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdditionalCBBOptions(pub BitString);
@@ -2275,6 +2292,19 @@ impl crate::strategy::Values for AlternateAccess {
     }
 }
 
+impl AlternateAccess {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for item in &self.0 {
+            item.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `AlternateAccessItemItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AlternateAccessItemItem {
@@ -2380,6 +2410,25 @@ impl crate::strategy::Values for AlternateAccessItemItem {
     }
 }
 
+impl AlternateAccessItemItem {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Unnamed(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::Named(value) => {
+                value.walk_strings(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `AlternateAccessItemItemNamed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlternateAccessItemItemNamed {
@@ -2470,6 +2519,18 @@ impl crate::strategy::Values for AlternateAccessItemItemNamed {
                 access,
             })
             .boxed()
+    }
+}
+
+impl AlternateAccessItemItemNamed {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.component_name.walk_strings(f)?;
+        self.access.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -2587,6 +2648,25 @@ impl crate::strategy::Values for AlternateAccessSelection {
             ]);
         }
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl AlternateAccessSelection {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::SelectAlternateAccess(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::SelectAccess(value) => {
+                value.walk_strings(f)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -2746,6 +2826,23 @@ impl crate::strategy::Values for AlternateAccessSelectionSelectAccess {
             proptest::strategy::Just(Self::AllElements).boxed(),
         ];
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl AlternateAccessSelectionSelectAccess {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Component(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -2946,6 +3043,18 @@ impl crate::strategy::Values for AlternateAccessSelectionSelectAlternateAccess {
     }
 }
 
+impl AlternateAccessSelectionSelectAlternateAccess {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.access_selection.walk_strings(f)?;
+        self.alternate_access.walk_strings(f)?;
+        Ok(())
+    }
+}
+
 /// ASN.1 type `AlternateAccessSelectionSelectAlternateAccessAccessSelection`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AlternateAccessSelectionSelectAlternateAccessAccessSelection {
@@ -3109,6 +3218,23 @@ impl crate::strategy::Values for AlternateAccessSelectionSelectAlternateAccessAc
             proptest::strategy::Just(Self::AllElements).boxed(),
         ];
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl AlternateAccessSelectionSelectAlternateAccessAccessSelection {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Component(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -4532,6 +4658,17 @@ impl crate::strategy::Values for ConfirmedRequestPDU {
     }
 }
 
+impl ConfirmedRequestPDU {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.service.walk_strings(f)?;
+        Ok(())
+    }
+}
+
 /// ASN.1 type `Confirmed-ResponsePDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfirmedResponsePDU {
@@ -4635,6 +4772,17 @@ impl crate::strategy::Values for ConfirmedResponsePDU {
                 service_ext,
             })
             .boxed()
+    }
+}
+
+impl ConfirmedResponsePDU {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.service.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -4952,6 +5100,41 @@ impl crate::strategy::Values for ConfirmedServiceRequest {
                 .boxed(),
         ];
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl ConfirmedServiceRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::GetNameList(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::Read(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::Write(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::GetVariableAccessAttributes(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::DefineNamedVariableList(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::GetNamedVariableListAttributes(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::DeleteNamedVariableList(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -5274,6 +5457,32 @@ impl crate::strategy::Values for ConfirmedServiceResponse {
     }
 }
 
+impl ConfirmedServiceResponse {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::GetNameList(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::Read(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::GetVariableAccessAttributes(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::GetNamedVariableListAttributes(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `Data`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Data {
@@ -5306,7 +5515,9 @@ pub enum Data {
     /// Alternative `objId`.
     ObjId(ObjectIdentifier),
     /// Alternative `mMSString`.
-    MMSString(MMSString),
+    MMSString(DataMMSString),
+    /// Alternative `utc-time`.
+    UtcTime(UtcTime),
     /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
@@ -5394,6 +5605,11 @@ impl Data {
             tag: Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)),
             presence: Presence::Required,
         },
+        Member {
+            name: "utc-time",
+            tag: Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
     ];
 }
 
@@ -5442,11 +5658,12 @@ impl Data {
                 Some(Tag::new(TagClass::Context, 15, Tagging::Implicit)),
                 id,
             )
-            || asn::accepts::<MMSString>(
+            || asn::accepts::<DataMMSString>(
                 Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)),
                 id,
             )
-            || (id.class == TagClass::Context && id.number >= 17)
+            || asn::accepts::<UtcTime>(Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)), id)
+            || (id.class == TagClass::Context && id.number >= 18)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
         let id = e.identifier;
@@ -5562,13 +5779,22 @@ impl Data {
                 e,
             )?));
         }
-        if asn::accepts::<MMSString>(Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)), id) {
-            return Ok(Self::MMSString(asn::decode::<MMSString>(
+        if asn::accepts::<DataMMSString>(
+            Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::MMSString(asn::decode::<DataMMSString>(
                 Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)),
                 e,
             )?));
         }
-        if id.class == TagClass::Context && id.number >= 17 {
+        if asn::accepts::<UtcTime>(Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)), id) {
+            return Ok(Self::UtcTime(asn::decode::<UtcTime>(
+                Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if id.class == TagClass::Context && id.number >= 18 {
             return Ok(Self::Unsupported {
                 tag: id.number,
                 raw: asn::raw(e, None),
@@ -5656,12 +5882,17 @@ impl Data {
                 v,
                 w,
             ),
-            Self::MMSString(v) => asn::encode::<MMSString>(
+            Self::MMSString(v) => asn::encode::<DataMMSString>(
                 Some(Tag::new(TagClass::Context, 16, Tagging::Implicit)),
                 v,
                 w,
             ),
-            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 17, raw),
+            Self::UtcTime(v) => asn::encode::<UtcTime>(
+                Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 18, raw),
         }
     }
     /// The context tag number of the alternative.
@@ -5682,6 +5913,7 @@ impl Data {
             Self::BooleanArray(_) => 14,
             Self::ObjId(_) => 15,
             Self::MMSString(_) => 16,
+            Self::UtcTime(_) => 17,
             Self::Unsupported { tag, .. } => *tag,
         }
     }
@@ -5747,12 +5979,18 @@ impl crate::strategy::Values for Data {
             crate::strategy::values::<asn::Oid>(depth)
                 .prop_map(Self::ObjId)
                 .boxed(),
-            crate::strategy::values::<MMSString>(depth)
+            crate::strategy::values::<DataMMSString>(depth)
                 .prop_map(Self::MMSString)
                 .boxed(),
-            crate::strategy::unsupported(17, &[1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16])
-                .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+            crate::strategy::values::<UtcTime>(depth)
+                .prop_map(Self::UtcTime)
                 .boxed(),
+            crate::strategy::unsupported(
+                18,
+                &[1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+            )
+            .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
+            .boxed(),
         ];
         if depth > 0 {
             arms.extend([
@@ -5765,6 +6003,33 @@ impl crate::strategy::Values for Data {
             ]);
         }
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl Data {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Array(value) => {
+                for item in value {
+                    item.walk_strings(f)?;
+                }
+            }
+            Self::Structure(value) => {
+                for item in value {
+                    item.walk_strings(f)?;
+                }
+            }
+            Self::MMSString(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -5857,6 +6122,70 @@ impl crate::strategy::Values for DataAccessError {
     }
 }
 
+/// ASN.1 type `DataMMSString`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataMMSString(pub String);
+
+impl DataMMSString {
+    /// Allowed sizes, as inclusive ranges.
+    pub const SIZES: &'static [(i64, i64)] = &[(0, 255)];
+}
+
+impl DataMMSString {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::Utf8 as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<asn::Utf8 as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <asn::Utf8 as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for DataMMSString {
+    type Value = Self;
+    const NAME: &'static str = "DataMMSString";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DataMMSString {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::Utf8>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+impl DataMMSString {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        f(crate::mms::Walked::DataMmsString(&self.0))?;
+        Ok(())
+    }
+}
+
 /// ASN.1 type `DefineNamedVariableList-Request`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DefineNamedVariableListRequest {
@@ -5940,6 +6269,20 @@ impl crate::strategy::Values for DefineNamedVariableListRequest {
     fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
         let _ = depth;
         ((crate::strategy::values::<ObjectName>(depth), crate::strategy::values::<asn::ListOf<DefineNamedVariableListRequestListOfVariableItem>>(depth),),).prop_map(|((variable_list_name, list_of_variable,),)| Self { variable_list_name, list_of_variable }).boxed()
+    }
+}
+
+impl DefineNamedVariableListRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_list_name.walk_strings(f)?;
+        for item in &self.list_of_variable {
+            item.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -6033,6 +6376,20 @@ impl crate::strategy::Values for DefineNamedVariableListRequestListOfVariableIte
                 alternate_access,
             })
             .boxed()
+    }
+}
+
+impl DefineNamedVariableListRequestListOfVariableItem {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_specification.walk_strings(f)?;
+        if let Some(value) = &self.alternate_access {
+            value.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -6204,6 +6561,24 @@ impl crate::strategy::Values for DeleteNamedVariableListRequest {
                 },
             )
             .boxed()
+    }
+}
+
+impl DeleteNamedVariableListRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if let Some(value) = &self.list_of_variable_list_name {
+            for item in value {
+                item.walk_strings(f)?;
+            }
+        }
+        if let Some(value) = &self.domain_name {
+            value.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -6563,6 +6938,20 @@ impl crate::strategy::Values for GetNameListRequest {
     }
 }
 
+impl GetNameListRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.object_scope.walk_strings(f)?;
+        if let Some(value) = &self.continue_after {
+            value.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `GetNameListRequestObjectScope`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GetNameListRequestObjectScope {
@@ -6688,6 +7077,23 @@ impl crate::strategy::Values for GetNameListRequestObjectScope {
     }
 }
 
+impl GetNameListRequestObjectScope {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::DomainSpecific(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `GetNameList-Response`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetNameListResponse {
@@ -6786,6 +7192,19 @@ impl crate::strategy::Values for GetNameListResponse {
     }
 }
 
+impl GetNameListResponse {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for item in &self.list_of_identifier {
+            item.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `GetNamedVariableListAttributes-Request`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetNamedVariableListAttributesRequest(pub ObjectName);
@@ -6833,6 +7252,17 @@ impl crate::strategy::Values for GetNamedVariableListAttributesRequest {
         crate::strategy::values::<ObjectName>(depth)
             .prop_map(Self)
             .boxed()
+    }
+}
+
+impl GetNamedVariableListAttributesRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.0.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -6958,6 +7388,22 @@ impl crate::strategy::Values for GetNamedVariableListAttributesResponse {
     }
 }
 
+impl GetNamedVariableListAttributesResponse {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for item in &self.list_of_variable {
+            item.walk_strings(f)?;
+        }
+        if let Some(value) = &self.access_control_list {
+            value.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `GetNamedVariableListAttributesResponseListOfVariableItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetNamedVariableListAttributesResponseListOfVariableItem {
@@ -7051,6 +7497,20 @@ impl crate::strategy::Values for GetNamedVariableListAttributesResponseListOfVar
                 alternate_access,
             })
             .boxed()
+    }
+}
+
+impl GetNamedVariableListAttributesResponseListOfVariableItem {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_specification.walk_strings(f)?;
+        if let Some(value) = &self.alternate_access {
+            value.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -7156,6 +7616,23 @@ impl crate::strategy::Values for GetVariableAccessAttributesRequest {
                 .boxed(),
         ];
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl GetVariableAccessAttributesRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Name(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -7314,13 +7791,27 @@ impl crate::strategy::Values for GetVariableAccessAttributesResponse {
     }
 }
 
+impl GetVariableAccessAttributesResponse {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.type_description.walk_strings(f)?;
+        if let Some(value) = &self.access_control_list {
+            value.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `Identifier`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identifier(pub String);
 
 impl Identifier {
     /// Allowed sizes, as inclusive ranges.
-    pub const SIZES: &'static [(i64, i64)] = &[(1, 32)];
+    pub const SIZES: &'static [(i64, i64)] = &[(1, 64)];
 }
 
 impl Identifier {
@@ -7377,6 +7868,17 @@ impl crate::strategy::Values for Identifier {
     fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
         let _ = depth;
         crate::strategy::identifier().prop_map(Self).boxed()
+    }
+}
+
+impl Identifier {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        f(crate::mms::Walked::Identifier(&self.0))?;
+        Ok(())
     }
 }
 
@@ -7718,6 +8220,20 @@ impl crate::strategy::Values for InformationReport {
                 },
             )
             .boxed()
+    }
+}
+
+impl InformationReport {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_access_specification.walk_strings(f)?;
+        for item in &self.list_of_access_result {
+            item.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -9241,6 +9757,29 @@ impl crate::strategy::Values for MMSpdu {
     }
 }
 
+impl MMSpdu {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::ConfirmedRequestPDU(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::ConfirmedResponsePDU(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::UnconfirmedPDU(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `Mechanism-name`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MechanismName(pub ObjectIdentifier);
@@ -9711,6 +10250,28 @@ impl crate::strategy::Values for ObjectName {
     }
 }
 
+impl ObjectName {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::VmdSpecific(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::DomainSpecific(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::AaSpecific(value) => {
+                value.walk_strings(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `ObjectNameDomainSpecific`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectNameDomainSpecific {
@@ -9788,6 +10349,18 @@ impl crate::strategy::Values for ObjectNameDomainSpecific {
         ),)
             .prop_map(|((domain_id, item_id),)| Self { domain_id, item_id })
             .boxed()
+    }
+}
+
+impl ObjectNameDomainSpecific {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.domain_id.walk_strings(f)?;
+        self.item_id.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -10178,6 +10751,17 @@ impl crate::strategy::Values for ReadRequest {
     }
 }
 
+impl ReadRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_access_specification.walk_strings(f)?;
+        Ok(())
+    }
+}
+
 /// ASN.1 type `Read-Response`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadResponse {
@@ -10278,6 +10862,22 @@ impl crate::strategy::Values for ReadResponse {
                 },
             )
             .boxed()
+    }
+}
+
+impl ReadResponse {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if let Some(value) = &self.variable_access_specification {
+            value.walk_strings(f)?;
+        }
+        for item in &self.list_of_access_result {
+            item.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -11746,6 +12346,19 @@ impl crate::strategy::Values for ScatteredAccessDescription {
     }
 }
 
+impl ScatteredAccessDescription {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for item in &self.0 {
+            item.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `ScatteredAccessDescriptionItemItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScatteredAccessDescriptionItemItem {
@@ -11860,6 +12473,23 @@ impl crate::strategy::Values for ScatteredAccessDescriptionItemItem {
                 },
             )
             .boxed()
+    }
+}
+
+impl ScatteredAccessDescriptionItemItem {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if let Some(value) = &self.component_name {
+            value.walk_strings(f)?;
+        }
+        self.variable_specification.walk_strings(f)?;
+        if let Some(value) = &self.alternate_access {
+            value.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -13059,6 +13689,8 @@ impl ServiceErrorErrorClassService {
     pub const PRIMITIVES_OUT_OF_SEQUENCE: Self = Self(1);
     /// Named value `object-state-conflict`.
     pub const OBJECT_STATE_CONFLICT: Self = Self(2);
+    /// Named value `pdu-size`.
+    pub const PDU_SIZE: Self = Self(3);
     /// Named value `continuation-invalid`.
     pub const CONTINUATION_INVALID: Self = Self(4);
     /// Named value `object-constraint-conflict`.
@@ -13676,6 +14308,8 @@ pub enum TypeDescription {
     ObjId,
     /// Alternative `mMSString`.
     MMSString(Integer32),
+    /// Alternative `utc-time`.
+    UtcTime,
     /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
@@ -13758,6 +14392,11 @@ impl TypeDescription {
             tag: Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
             presence: Presence::Required,
         },
+        Member {
+            name: "utc-time",
+            tag: Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
     ];
 }
 
@@ -13814,7 +14453,11 @@ impl TypeDescription {
                 Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
                 id,
             )
-            || (id.class == TagClass::Context && id.number >= 17)
+            || asn::accepts::<asn::Null>(
+                Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
+                id,
+            )
+            || (id.class == TagClass::Context && id.number >= 18)
     }
     fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
         let id = e.identifier;
@@ -13912,7 +14555,11 @@ impl TypeDescription {
                 e,
             )?));
         }
-        if id.class == TagClass::Context && id.number >= 17 {
+        if asn::accepts::<asn::Null>(Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)), id) {
+            asn::decode::<asn::Null>(Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)), e)?;
+            return Ok(Self::UtcTime);
+        }
+        if id.class == TagClass::Context && id.number >= 18 {
             return Ok(Self::Unsupported {
                 tag: id.number,
                 raw: asn::raw(e, None),
@@ -14000,7 +14647,12 @@ impl TypeDescription {
                 v,
                 w,
             ),
-            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 17, raw),
+            Self::UtcTime => asn::encode::<asn::Null>(
+                Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
+                &(),
+                w,
+            ),
+            Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 18, raw),
         }
     }
     /// The context tag number of the alternative.
@@ -14020,6 +14672,7 @@ impl TypeDescription {
             Self::Bcd(_) => 13,
             Self::ObjId => 15,
             Self::MMSString(_) => 16,
+            Self::UtcTime => 17,
             Self::Unsupported { tag, .. } => *tag,
         }
     }
@@ -14079,7 +14732,8 @@ impl crate::strategy::Values for TypeDescription {
             crate::strategy::values::<Integer32>(depth)
                 .prop_map(Self::MMSString)
                 .boxed(),
-            crate::strategy::unsupported(17, &[1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 15, 16])
+            proptest::strategy::Just(Self::UtcTime).boxed(),
+            crate::strategy::unsupported(18, &[1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 15, 16, 17])
                 .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
                 .boxed(),
         ];
@@ -14096,6 +14750,26 @@ impl crate::strategy::Values for TypeDescription {
             ]);
         }
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl TypeDescription {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Array(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::Structure(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -14213,6 +14887,17 @@ impl crate::strategy::Values for TypeDescriptionArray {
                 element_type,
             })
             .boxed()
+    }
+}
+
+impl TypeDescriptionArray {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.element_type.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -14394,6 +15079,19 @@ impl crate::strategy::Values for TypeDescriptionStructure {
     }
 }
 
+impl TypeDescriptionStructure {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for item in &self.components {
+            item.walk_strings(f)?;
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `TypeDescriptionStructureComponentsItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeDescriptionStructureComponentsItem {
@@ -14489,6 +15187,20 @@ impl crate::strategy::Values for TypeDescriptionStructureComponentsItem {
                 component_type,
             })
             .boxed()
+    }
+}
+
+impl TypeDescriptionStructureComponentsItem {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if let Some(value) = &self.component_name {
+            value.walk_strings(f)?;
+        }
+        self.component_type.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -14594,6 +15306,25 @@ impl crate::strategy::Values for TypeSpecification {
     }
 }
 
+impl TypeSpecification {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::TypeName(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::TypeDescription(value) => {
+                value.walk_strings(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `Unconfirmed-PDU`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnconfirmedPDU {
@@ -14685,6 +15416,17 @@ impl crate::strategy::Values for UnconfirmedPDU {
                 service_ext,
             })
             .boxed()
+    }
+}
+
+impl UnconfirmedPDU {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.service.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -14796,6 +15538,23 @@ impl crate::strategy::Values for UnconfirmedService {
                 .boxed(),
         ];
         proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl UnconfirmedService {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::InformationReport(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -14929,6 +15688,73 @@ impl crate::strategy::Values for Unsigned8 {
     }
 }
 
+/// ASN.1 type `UtcTime`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UtcTime(pub Vec<u8>);
+
+impl UtcTime {
+    /// Allowed sizes, as inclusive ranges.
+    pub const SIZES: &'static [(i64, i64)] = &[(8, 8)];
+}
+
+impl UtcTime {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::Octets as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let value = Self(<asn::Octets as asn::Codec>::decode(e)?);
+        value.check()?;
+        Ok(value)
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        self.check()?;
+        <asn::Octets as asn::Codec>::encode(&self.0, w, implicit)
+    }
+    /// The value, if it meets the constraint of the type.
+    pub fn new(value: Vec<u8>) -> Result<Self, asn::Error> {
+        let value = Self(value);
+        value.check()?;
+        Ok(value)
+    }
+    /// Checks the value against the constraint of the type.
+    pub fn check(&self) -> Result<(), asn::Error> {
+        asn::check_sizes("UtcTime", Self::SIZES, &self.0)?;
+        Ok(())
+    }
+}
+
+impl asn::Codec for UtcTime {
+    type Value = Self;
+    const NAME: &'static str = "UtcTime";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for UtcTime {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::Octets>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `VariableAccessSpecification`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VariableAccessSpecification {
@@ -15045,6 +15871,27 @@ impl crate::strategy::Values for VariableAccessSpecification {
     }
 }
 
+impl VariableAccessSpecification {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::ListOfVariable(value) => {
+                for item in value {
+                    item.walk_strings(f)?;
+                }
+            }
+            Self::VariableListName(value) => {
+                value.walk_strings(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `VariableAccessSpecificationListOfVariableItem`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableAccessSpecificationListOfVariableItem {
@@ -15134,6 +15981,20 @@ impl crate::strategy::Values for VariableAccessSpecificationListOfVariableItem {
                 alternate_access,
             })
             .boxed()
+    }
+}
+
+impl VariableAccessSpecificationListOfVariableItem {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_specification.walk_strings(f)?;
+        if let Some(value) = &self.alternate_access {
+            value.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -15329,6 +16190,29 @@ impl crate::strategy::Values for VariableSpecification {
     }
 }
 
+impl VariableSpecification {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Name(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::VariableDescription(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::ScatteredAccessDescription(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 /// ASN.1 type `VariableSpecificationVariableDescription`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableSpecificationVariableDescription {
@@ -15412,6 +16296,17 @@ impl crate::strategy::Values for VariableSpecificationVariableDescription {
                 type_specification,
             })
             .boxed()
+    }
+}
+
+impl VariableSpecificationVariableDescription {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.type_specification.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -15510,6 +16405,20 @@ impl crate::strategy::Values for WriteRequest {
                 list_of_data,
             })
             .boxed()
+    }
+}
+
+impl WriteRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.variable_access_specification.walk_strings(f)?;
+        for item in &self.list_of_data {
+            item.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 

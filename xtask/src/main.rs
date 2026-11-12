@@ -21,10 +21,10 @@ use data::{validate, Conformance, Profile};
 use emit::{tables_txt, Generator};
 
 const MODULES: [&str; 5] = [
-    "docs/spec/9506-2/data/asn1/variante_if/ISO-9506-MMS-1.asn",
-    "docs/spec/9506-2/data/asn1/variante_if/ISO-9506-MMS-1A.asn",
-    "docs/spec/9506-2/data/asn1/variante_if/MMS-Environment-1.asn",
-    "docs/spec/9506-1/data/asn1/variante_if/MMS-Object-Module-1.asn",
+    "docs/spec/9506-2/data/asn1/variante_61850/ISO-9506-MMS-1.asn",
+    "docs/spec/9506-2/data/asn1/variante_61850/ISO-9506-MMS-1A.asn",
+    "docs/spec/9506-2/data/asn1/variante_61850/MMS-Environment-1.asn",
+    "docs/spec/9506-1/data/asn1/variante_61850/MMS-Object-Module-1.asn",
     "docs/spec/X.227/data/asn1/variante_if/ACSE-1.asn",
 ];
 

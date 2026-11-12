@@ -5,6 +5,25 @@ All notable changes to this project are recorded in this file. The format follow
 
 ## [Unreleased]
 
+The next release is **2.0.0**: the public types change (decision D-031).
+
+### Added
+
+- The codec reads the IEC 61850 union of the MMS types (IEC 61850-8-1 Annex F): `Data::UtcTime` and
+  `TypeDescription::UtcTime` (tag [17]), identifiers of up to 64 characters, the `pdu-size` service error
+  (`ServiceErrorErrorClassService::PDU_SIZE`).
+- `mms::check_strings`, `mms::StringLimits` (`ISO_9506`, `IEC_61850`) and the generated `walk_strings`:
+  the strings that the union widens are checked per profile. `Association::set_string_limits` and
+  `Requests::set_string_limits` choose the limits; ISO 9506 by default, so the behaviour of the ISO 9506
+  profile (TASE.2) is unchanged.
+- `CbbError::IdentifierLength` and `CbbError::DataString`.
+
+### Changed
+
+- **Breaking**: `Data` and `TypeDescription` have a new alternative (`UtcTime`); exhaustive matches need an arm.
+- **Breaking**: `Data::MMSString` carries a `DataMMSString` (UTF-8 in the union) instead of an `MMSString`.
+- A `Data` value with tag [17] is decoded as `Data::UtcTime` instead of `Data::Unsupported`.
+
 ## [1.1.0] - 2026-11-08
 
 ### Added

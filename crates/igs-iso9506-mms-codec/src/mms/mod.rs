@@ -14,6 +14,7 @@
 
 mod cbb;
 mod floating;
+mod strings;
 mod time;
 
 pub use crate::generated::types::{
@@ -24,12 +25,13 @@ pub use crate::generated::types::{
     UnconfirmedPDU, UnconfirmedService,
 };
 pub use cbb::{validate_cbb, CbbError, Negotiated};
+pub use strings::{check_strings, DataStringForm, StringLimits, Walked};
 
 pub use crate::generated::types::{
-    AccessResult, Data, DataAccessError, FloatingPoint, Identifier, Integer16, Integer32, Integer8,
-    MMSString, ObjectName, ObjectNameDomainSpecific, TimeOfDay, TypeDescription,
-    TypeDescriptionArray, TypeDescriptionFloatingPoint, TypeDescriptionStructure,
-    TypeDescriptionStructureComponentsItem, TypeSpecification, Unsigned32, Unsigned8,
+    AccessResult, Data, DataAccessError, DataMMSString, FloatingPoint, Identifier, Integer16,
+    Integer32, Integer8, MMSString, ObjectName, ObjectNameDomainSpecific, TimeOfDay,
+    TypeDescription, TypeDescriptionArray, TypeDescriptionFloatingPoint, TypeDescriptionStructure,
+    TypeDescriptionStructureComponentsItem, TypeSpecification, Unsigned32, Unsigned8, UtcTime,
 };
 pub use time::MAX_MILLISECONDS;
 

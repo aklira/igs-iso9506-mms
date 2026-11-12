@@ -23,7 +23,7 @@ use igs_iso9506_mms_codec::generated::types::{
 };
 use igs_iso9506_mms_codec::mms::{
     self, CbbError, InitiateErrorPDU, InitiateRequestPDU, InitiateResponsePDU, Integer16, Integer8,
-    MMSpdu, Negotiated, ServiceError,
+    MMSpdu, Negotiated, ServiceError, StringLimits,
 };
 use igs_iso9506_mms_codec::presentation::{Pdv, PdvValues, UserData};
 use igs_iso9506_mms_codec::schema::{BitString, ObjectIdentifier, RawBer};
@@ -177,6 +177,9 @@ pub struct Association {
     /// Whether the parameter CBBs proposed are taken as negotiated for the checks of outgoing PDUs,
     /// for a peer that answers services whose CBBs it did not negotiate (`docs/capabilities.md`, G8).
     lenient_parameter_cbbs: bool,
+    /// The limits of the profile on the strings that the IEC 61850 union of the codec widens: ISO 9506
+    /// by default (D-031).
+    string_limits: StringLimits,
     /// The application context name of the association: the one proposed by the initiator, as the
     /// responder answers with it.
     context: ApplicationContextName,
@@ -197,6 +200,7 @@ impl Association {
             upper,
             state: State::Idle,
             lenient_parameter_cbbs: false,
+            string_limits: StringLimits::ISO_9506,
             context: mms_context_name(),
         })
     }
@@ -205,6 +209,13 @@ impl Association {
     /// the peer's answer is what the standard says is negotiated. See `docs/capabilities.md`, G8.
     pub fn set_lenient_parameter_cbbs(&mut self, on: bool) {
         self.lenient_parameter_cbbs = on;
+    }
+
+    /// Sets the limits of the profile on identifiers and on the MMS string of `Data`, checked on every
+    /// PDU sent and received after the negotiation. ISO 9506 by default; the IEC 61850 profile widens
+    /// them (D-031).
+    pub fn set_string_limits(&mut self, limits: StringLimits) {
+        self.string_limits = limits;
     }
 
     /// Whether the association is established.
@@ -529,7 +540,7 @@ impl Association {
             return out;
         }
         let served = serving_view(&session, &pdu, true);
-        match mms::validate_cbb(&pdu, served) {
+        match checked(&pdu, served, &self.string_limits) {
             Ok(()) => vec![Action::Pdu(pdu)],
             Err(error) => vec![Action::Unsupported(pdu, error)],
         }
@@ -582,8 +593,10 @@ impl Association {
             return vec![Action::Misuse("Initiate is not sent within an association")];
         }
         let served = serving_view(&session, &pdu, false);
-        if mms::validate_cbb(&pdu, served).is_err() {
-            return vec![Action::Misuse("the PDU is not allowed by the negotiation")];
+        if checked(&pdu, served, &self.string_limits).is_err() {
+            return vec![Action::Misuse(
+                "the PDU is not allowed by the negotiation or by the profile",
+            )];
         }
         let Ok(bytes) = mms::encode(&pdu) else {
             return vec![Action::Misuse("the MMS PDU does not encode")];
@@ -884,6 +897,13 @@ fn is_request(pdu: &MMSpdu) -> bool {
 
 /// The view of the server that checks a PDU: `incoming` PDUs come from the peer, the others are sent by
 /// this end. The end that serves the PDU is the receiver for a request, the sender otherwise.
+/// The checks of a PDU after the negotiation: its CBBs (D-013), then the strings that the profile
+/// narrows (D-031).
+fn checked(pdu: &MMSpdu, served: &Negotiated, limits: &StringLimits) -> Result<(), CbbError> {
+    mms::validate_cbb(pdu, served)?;
+    mms::check_strings(pdu, limits)
+}
+
 fn serving_view<'a>(session: &'a Session, pdu: &MMSpdu, incoming: bool) -> &'a Negotiated {
     if is_request(pdu) == incoming {
         &session.me
@@ -1078,6 +1098,46 @@ mod tests {
         assert!(mms::validate_cbb(&pdu, serving_view(&without, &pdu, true)).is_err());
         let with = session(&[position("vlis")]);
         assert!(mms::validate_cbb(&pdu, serving_view(&with, &pdu, true)).is_ok());
+    }
+
+    #[test]
+    fn identifiers_are_checked_against_the_profile_after_the_cbbs() {
+        // An IEC 61850 report control block attribute, 39 characters (bench of igs-iec61850-mms, F4).
+        let long = "LLN0$BR$EventsBRCBPreConf01$TimeofEntry".to_string();
+        let MMSpdu::UnconfirmedPDU(mut unconfirmed) = information_report() else {
+            panic!()
+        };
+        let UnconfirmedService::InformationReport(report) = &mut unconfirmed.service else {
+            panic!()
+        };
+        report.variable_access_specification = VariableAccessSpecification::VariableListName(
+            ObjectName::VmdSpecific(Identifier(long)),
+        );
+        let pdu = MMSpdu::UnconfirmedPDU(unconfirmed);
+        let session = session(&[position("vlis")]);
+        let served = serving_view(&session, &pdu, true);
+        assert_eq!(
+            checked(&pdu, served, &StringLimits::ISO_9506),
+            Err(CbbError::IdentifierLength {
+                length: 39,
+                limit: 32
+            })
+        );
+        assert_eq!(checked(&pdu, served, &StringLimits::IEC_61850), Ok(()));
+        // The CBBs come first: without the variable list CBB, the refusal is the CBB's.
+        let without = session_without_vlis();
+        assert!(matches!(
+            checked(
+                &pdu,
+                serving_view(&without, &pdu, true),
+                &StringLimits::IEC_61850
+            ),
+            Err(CbbError::NotNegotiated { .. })
+        ));
+    }
+
+    fn session_without_vlis() -> Session {
+        session(&[])
     }
 
     #[test]
