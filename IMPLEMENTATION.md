@@ -430,7 +430,7 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 | R1 Legal review and release ⛔ | [ ] |
 | N1 Generator input and codec union | [x] |
 | N2 IEC 61850 MMS profile | [x] |
-| N3 Typed UtcTime, MMSString and TypeDescription | [ ] |
+| N3 Typed UtcTime, MMSString and TypeDescription | [x] |
 | N4 Alternate access towards the model | [ ] |
 | N5 Observable outbound delivery | [ ] |
 

@@ -910,6 +910,40 @@ silent, to be confirmed by an observation test against other implementations.
   (`bench/tests/test_f4_mms_client.py`: the strict refusal, the lenient identification, listing and
   decoding).
 
+### D-034 — The UtcTime, the MMS strings and the form of TypeDescription's mMSString (task N3 of igs-iec61850-mms)
+
+- **Decision**: three points.
+  1. **UtcTime, typed** (`mms::utc`): the eight octets (IEC 61850-8-1 Annex F.3.1) read as `UtcTimestamp`:
+     seconds since 1970-01-01 UTC on 32 bits, fraction on 24 bits, and a `TimeQuality` read from Table 36 of
+     8-1 (leap seconds known, clock failure, clock not synchronised, accuracy of 0 to 24 bits or unspecified).
+     An accuracy of 25 to 30 is invalid and refused; a fraction past 24 bits and an octet count other than
+     eight are refused. The Data and TypeDescription alternatives stay the codec's; the VMD checks that a
+     UtcTime value is eight octets and valid (`vmd::conform`).
+  2. **The MMS strings**: `DataMMSString` (the `mMSString` of `Data`, UTF-8 in the union) is read and written as
+     UTF-8; a malformed sequence is refused by the codec. The limits of the profile apply as in D-032: 255
+     characters, which is at most 1020 octets, since a character of §8.1.2.6 takes up to four octets. The
+     ISO 9506 profile keeps its VisibleString limits.
+  3. **The form of TypeDescription's `mMSString`** (`Tagging::Either`): ISO 9506-2 writes it EXPLICIT, IEC
+     61850-8-1 Annex F.1 IMPLICIT. The generator marks this one component `Either`. The decoder reads the
+     constructed form as explicit and the primitive form as implicit, whatever the profile. The encoder writes
+     the form the writer asks for: `mms::encode_for(pdu, profile)` writes IMPLICIT when
+     `Profile::implicit_mms_string` is set (the IEC 61850 profile), EXPLICIT otherwise (TASE.2). The association
+     sends every PDU with its profile.
+- **Why**: the IEC 61850 server describes a string attribute with an implicit `mMSString`; a client that reads
+  only the explicit form would fail the whole GetVariableAccessAttributes answer. The form is a property of
+  the profile, so the writer carries it (`Writer::set_implicit_either`); the codec stays one codec.
+- **Trade-off, recorded**: the decoder accepts both forms under every profile, TASE.2 included. A strict
+  decoder per profile would need the profile on the decoding path too; that is left for a later task if a
+  TASE.2 peer needs to be refused on this point. It does not change what TASE.2 writes.
+- **Sources**: IEC 61850-8-1:2011+AMD1:2020 Annex F.1 (the `mMSString` of TypeDescription), F.2.2, F.3.1 (the
+  octet layout, the fraction, the quality), F.3.3 (the UTF-8 string of Data), Table 36 (TimeQuality), §8.1.2.6
+  (characters of up to four octets); ISO 9506-2 §14.2.1, §14.4.2.
+- **Confidence**: high for the octet layouts, which the vectors build from the standard's layout; high for the
+  profile-dependent writing; medium for the leniency of the decoder under TASE.2 (see the trade-off).
+- **Test**: `crates/igs-iso9506-mms-codec/tests/utc_and_mms_string.rs` (13 tests: epoch, 2000-01-01, half a
+  second, the qualities, the invalid accuracies, the length of the octets, the round trip through Data, both
+  forms of `mMSString`, the profile's writing, UTF-8 of 1020 octets, malformed UTF-8).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

@@ -154,6 +154,11 @@ pub fn decode<K: Codec>(tag: Option<Tag>, element: &Element<'_>) -> Result<K::Va
             tagging: Tagging::Explicit,
             ..
         }) => explicit(element, K::NAME, K::accepts, K::decode),
+        // Either form: the constructed one is the explicit tag, the primitive one the implicit tag (D-034).
+        Some(Tag {
+            tagging: Tagging::Either,
+            ..
+        }) if element.identifier.constructed => explicit(element, K::NAME, K::accepts, K::decode),
         _ => K::decode(element),
     }
 }
@@ -163,6 +168,9 @@ pub fn encode<K: Codec>(tag: Option<Tag>, value: &K::Value, w: &mut Writer) -> R
     match tag {
         None => K::encode(value, w, None),
         Some(tag) if tag.tagging == Tagging::Implicit => K::encode(value, w, Some(identifier(tag))),
+        Some(tag) if tag.tagging == Tagging::Either && w.implicit_either => {
+            K::encode(value, w, Some(identifier(tag)))
+        }
         Some(tag) => w.constructed(identifier(tag), |w| K::encode(value, w, None)),
     }
 }
@@ -225,6 +233,18 @@ pub fn decode_value<K: Codec>(bytes: &[u8]) -> Result<K::Value, Error> {
 /// Encodes one value of `K`.
 pub fn encode_value<K: Codec>(value: &K::Value) -> Result<Vec<u8>, Error> {
     let mut w = Writer::new();
+    K::encode(value, &mut w, None)?;
+    Ok(w.into_bytes())
+}
+
+/// Encodes a value, writing the components tagged [`Tagging::Either`] in their implicit form when
+/// `implicit_either` is set (IEC 61850-8-1 Annex F.1; D-034).
+pub fn encode_value_with<K: Codec>(
+    value: &K::Value,
+    implicit_either: bool,
+) -> Result<Vec<u8>, Error> {
+    let mut w = Writer::new();
+    w.set_implicit_either(implicit_either);
     K::encode(value, &mut w, None)?;
     Ok(w.into_bytes())
 }

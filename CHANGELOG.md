@@ -23,12 +23,23 @@ The next release is **2.0.0**: the public types change (decision D-032).
   `Association::set_profile` and `Requests::set_profile` apply it; `ClientConfig::profile` and
   `ServerConfig::profile` carry it; `igsmms-client --profile iec61850 --logical-nodes [--data-sets] [--arrays]`.
 - `Refusal::Profile` and `Error::Profile`: a profile refusal, with the CBB or the nesting that is missing.
+- `mms::utc`: `UtcTimestamp` (seconds, 24-bit fraction, `TimeQuality`) and `TimeQuality` / `TimeAccuracy`,
+  with `UtcTime::timestamp` and `UtcTime::from_timestamp`. A quality with an invalid accuracy is refused.
+- `mms::encode_for(pdu, profile)`: the PDU as the profile writes it. `Association` sends with its profile.
+- `schema::Tagging::Either`: a component tagged either way, read in both forms and written as the writer asks.
+  The `mMSString` of `TypeDescription` is the one such component. The decoder reads both forms under every
+  profile (D-034).
+- The VMD checks that a `UtcTime` value of a described type is eight octets and valid.
 
 ### Changed
 
 - **Breaking**: `Data` and `TypeDescription` have a new alternative (`UtcTime`); exhaustive matches need an arm.
 - **Breaking**: `Data::MMSString` carries a `DataMMSString` (UTF-8 in the union) instead of an `MMSString`.
 - A `Data` value with tag [17] is decoded as `Data::UtcTime` instead of `Data::Unsupported`.
+- **Breaking**: `Refusal` gains `Profile`; `Writer`, `Tagging` and `ServerConfig` / `ClientConfig` gain fields or
+  variants (`ClientConfig::profile`, `ServerConfig::profile`, `Tagging::Either`). Exhaustive matches and struct
+  literals need an update.
+- A `TypeDescription` `mMSString` is read in its explicit or its implicit form (D-034).
 
 ## [1.1.0] - 2026-11-08
 

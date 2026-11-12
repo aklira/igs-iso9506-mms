@@ -90,6 +90,9 @@ pub struct Profile {
     pub min_nesting: i64,
     /// The ACSI model whose rules apply; `None` for a profile without rules.
     pub model: Option<Model>,
+    /// Whether the `mMSString` of `TypeDescription` is written implicitly (IEC 61850-8-1 Annex F.1), else
+    /// explicitly (ISO 9506-2). Both forms are read (D-034).
+    pub implicit_mms_string: bool,
 }
 
 impl Profile {
@@ -100,6 +103,7 @@ impl Profile {
         string_limits: StringLimits::ISO_9506,
         min_nesting: 2,
         model: None,
+        implicit_mms_string: false,
     };
 
     /// The IEC 61850-8-1 profile for a declared ACSI model: the IEC limits, a nesting level of six when
@@ -110,6 +114,7 @@ impl Profile {
             string_limits: StringLimits::IEC_61850,
             min_nesting: if model.logical_nodes { 6 } else { 2 },
             model: Some(model),
+            implicit_mms_string: true,
         }
     }
 

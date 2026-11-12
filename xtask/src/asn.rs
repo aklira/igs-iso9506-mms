@@ -16,6 +16,8 @@ pub type Fail = Box<dyn std::error::Error>;
 pub enum Tagging {
     Implicit,
     Explicit,
+    /// Either form, by the profile (D-034).
+    Either,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

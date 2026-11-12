@@ -632,7 +632,7 @@ impl Association {
                 "the PDU is not allowed by the negotiation or by the profile",
             )];
         }
-        let Ok(bytes) = mms::encode(&pdu) else {
+        let Ok(bytes) = mms::encode_for(&pdu, &self.profile) else {
             return vec![Action::Misuse("the MMS PDU does not encode")];
         };
         let actions = self.upper.handle(upper::Event::Data(mms_user_data(bytes)));

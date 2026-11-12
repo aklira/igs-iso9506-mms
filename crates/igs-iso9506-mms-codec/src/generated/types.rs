@@ -14389,7 +14389,7 @@ impl TypeDescription {
         },
         Member {
             name: "mMSString",
-            tag: Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
+            tag: Some(Tag::new(TagClass::Context, 16, Tagging::Either)),
             presence: Presence::Required,
         },
         Member {
@@ -14449,10 +14449,7 @@ impl TypeDescription {
                 Some(Tag::new(TagClass::Context, 15, Tagging::Implicit)),
                 id,
             )
-            || asn::accepts::<Integer32>(
-                Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
-                id,
-            )
+            || asn::accepts::<Integer32>(Some(Tag::new(TagClass::Context, 16, Tagging::Either)), id)
             || asn::accepts::<asn::Null>(
                 Some(Tag::new(TagClass::Context, 17, Tagging::Implicit)),
                 id,
@@ -14549,9 +14546,9 @@ impl TypeDescription {
             asn::decode::<asn::Null>(Some(Tag::new(TagClass::Context, 15, Tagging::Implicit)), e)?;
             return Ok(Self::ObjId);
         }
-        if asn::accepts::<Integer32>(Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)), id) {
+        if asn::accepts::<Integer32>(Some(Tag::new(TagClass::Context, 16, Tagging::Either)), id) {
             return Ok(Self::MMSString(asn::decode::<Integer32>(
-                Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
+                Some(Tag::new(TagClass::Context, 16, Tagging::Either)),
                 e,
             )?));
         }
@@ -14643,7 +14640,7 @@ impl TypeDescription {
                 w,
             ),
             Self::MMSString(v) => asn::encode::<Integer32>(
-                Some(Tag::new(TagClass::Context, 16, Tagging::Explicit)),
+                Some(Tag::new(TagClass::Context, 16, Tagging::Either)),
                 v,
                 w,
             ),

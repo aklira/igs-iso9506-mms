@@ -24,6 +24,10 @@ pub enum Tagging {
     Implicit,
     /// Wraps the encoding of the type.
     Explicit,
+    /// Either form, by the profile (N3, D-034): the decoder reads the constructed form as explicit and the
+    /// primitive form as implicit; the encoder writes the implicit form when the writer asks for it
+    /// (IEC 61850-8-1 Annex F.1), else the explicit form of ISO 9506-2.
+    Either,
 }
 
 /// A tag of an ASN.1 type.

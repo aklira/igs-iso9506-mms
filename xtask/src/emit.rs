@@ -58,11 +58,10 @@ const UNCHECKED: [&str; 5] = [
     "DataMMSString",
 ];
 
-/// Members kept with the tagging of ISO 9506-2 although the IEC 61850 union changes it: IEC 61850-8-1
-/// Annex F.1 makes `mMSString` of `TypeDescription` implicit, while ISO 9506-2 leaves it explicit (the
-/// module tags explicitly by default). The codec keeps the ISO form until the profile chooses the
-/// encoding (task N3 of igs-iec61850-mms; D-032).
-const ISO_TAGGING: [(&str, &str); 1] = [("TypeDescription", "mMSString")];
+/// Members whose tagging the profile chooses: IEC 61850-8-1 Annex F.1 makes `mMSString` of
+/// `TypeDescription` implicit, while ISO 9506-2 leaves it explicit. The codec reads both forms and writes
+/// the one the writer asks for (`Tagging::Either`, task N3 of igs-iec61850-mms; D-034).
+const EITHER_TAGGING: [(&str, &str); 1] = [("TypeDescription", "mMSString")];
 
 /// Types read in their ELSE branch: the profile has no `char` CBB (IEC 60870-6-702 table A.19), so
 /// these strings are VisibleStrings (ISO 9506-2 §7.5.2, §7.5.6), not the UTF8Strings of the IF
@@ -462,9 +461,9 @@ impl<'a> Generator<'a> {
             (None, false) => "Presence::Required".to_owned(),
         };
         let mut tag = self.effective(member.ty.tag, &member.ty)?;
-        if ISO_TAGGING.contains(&(asn, member.name.as_str())) {
+        if EITHER_TAGGING.contains(&(asn, member.name.as_str())) {
             if let Some(t) = tag.as_mut() {
-                t.tagging = Tagging::Explicit;
+                t.tagging = Tagging::Either;
             }
         }
         Ok(Field {
@@ -843,6 +842,7 @@ fn tag_value(tag: Tag) -> String {
     let tagging = match tag.tagging {
         Tagging::Implicit => "Implicit",
         Tagging::Explicit => "Explicit",
+        Tagging::Either => "Either",
     };
     format!(
         "Tag::new(TagClass::{class}, {}, Tagging::{tagging})",

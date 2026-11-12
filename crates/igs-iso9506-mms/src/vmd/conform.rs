@@ -45,6 +45,10 @@ pub fn conforms(ty: &TypeDescription, value: &Data) -> bool {
         (TypeDescription::MMSString(size), Data::MMSString(text)) => {
             sized_length(size.0, text.0.chars().count())
         }
+        (TypeDescription::UtcTime, Data::UtcTime(time)) => {
+            // IEC 61850-8-1 Annex F.3.1: eight octets, read as a timestamp (N3).
+            time.timestamp().is_ok()
+        }
         // Types and values that this model does not hold.
         _ => false,
     }

@@ -11,6 +11,9 @@ use crate::schema::{BitString, ObjectIdentifier, TagClass};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Writer {
     out: Vec<u8>,
+    /// Whether a component tagged [`Tagging::Either`](crate::schema::Tagging::Either) is written in its
+    /// implicit form (IEC 61850-8-1 Annex F.1). Off by default: the explicit form of ISO 9506-2.
+    pub(crate) implicit_either: bool,
 }
 
 fn significant(bytes: &[u8]) -> &[u8] {
@@ -32,6 +35,12 @@ impl Writer {
     }
 
     /// The octets written.
+    /// Sets the form of the components tagged [`Tagging::Either`](crate::schema::Tagging::Either).
+    pub fn set_implicit_either(&mut self, implicit: bool) {
+        self.implicit_either = implicit;
+    }
+
+    /// Consumes the writer and returns its bytes.
     pub fn into_bytes(self) -> Vec<u8> {
         self.out
     }

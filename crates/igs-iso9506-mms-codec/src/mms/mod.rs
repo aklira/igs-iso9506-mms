@@ -17,6 +17,7 @@ mod floating;
 pub mod profile;
 mod strings;
 mod time;
+mod utc;
 
 pub use crate::generated::types::{
     ConcludeErrorPDU, ConcludeRequestPDU, ConcludeResponsePDU, ConfirmedErrorPDU,
@@ -35,6 +36,7 @@ pub use crate::generated::types::{
     TypeDescriptionStructureComponentsItem, TypeSpecification, Unsigned32, Unsigned8, UtcTime,
 };
 pub use time::MAX_MILLISECONDS;
+pub use utc::{TimeAccuracy, TimeQuality, UtcTimestamp, MAX_FRACTION, UTC_TIME_OCTETS};
 
 use crate::asn::{self, Error};
 
@@ -44,9 +46,15 @@ pub fn decode(bytes: &[u8]) -> Result<MMSpdu, Error> {
     asn::decode_value::<MMSpdu>(bytes)
 }
 
-/// Encodes an MMS PDU.
+/// Encodes an MMS PDU in the explicit form of the components tagged either way (ISO 9506-2).
 pub fn encode(pdu: &MMSpdu) -> Result<Vec<u8>, Error> {
     asn::encode_value::<MMSpdu>(pdu)
+}
+
+/// Encodes an MMS PDU as the profile writes it: the `mMSString` of `TypeDescription` in the form of the
+/// profile (D-034).
+pub fn encode_for(pdu: &MMSpdu, profile: &profile::Profile) -> Result<Vec<u8>, Error> {
+    asn::encode_value_with::<MMSpdu>(pdu, profile.implicit_mms_string)
 }
 
 /// Whether a character is allowed in an Identifier: letters, digits, `$` and `_` (ISO 9506-2
