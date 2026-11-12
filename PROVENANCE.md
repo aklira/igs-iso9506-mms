@@ -944,6 +944,34 @@ silent, to be confirmed by an observation test against other implementations.
   second, the qualities, the invalid accuracies, the length of the octets, the round trip through Data, both
   forms of `mMSString`, the profile's writing, UTF-8 of 1020 octets, malformed UTF-8).
 
+### D-035 — Alternate access reaches the model that negotiates valt; the generic VMD keeps refusing it (task N4 of igs-iec61850-mms)
+
+- **Decision**: a request with an alternate access (ISO 9506-2 §14.4) is refused by the CBB check unless the
+  server negotiated `valt` (§8.1.3.15.4). `ServerConfig::with_alternate_access()` negotiates it, so such a
+  request reaches the model's `dispatch` unchanged. A model reads its paths with
+  `server::access::steps(&AlternateAccess)`: a path of `AccessStep`s (`Component`, `Index`, `Range`,
+  `AllElements`), in the order of the items; a named item starts with its component name; a nested selection
+  gives its own access selection and then its alternate access. The bounds are checked first: an empty range
+  is refused, and a range whose last element leaves 32 bits too. The refused item fails with
+  `OBJECT_VALUE_INVALID`, and the model does not see it. The generic VMD (`Vmd::dispatch`) keeps refusing
+  every alternate access item by item (`OBJECT_ACCESS_UNSUPPORTED`), with or without `valt`.
+- **Why**: MMS-007 asks the alternate access to be served where the model supports it and refused where it
+  does not. The CBB check is the place where the negotiation decides what the server serves; the model is the
+  place that knows the components; the bounds belong to the protocol. Negotiating `valt` is opt-in, so the
+  server that does not serve it refuses the request before the model, as before.
+- **Limits**: an index comes from the wire as a value in 0 to 2^31 - 1 (Unsigned32), so only the empty range
+  is refused by its bounds on the wire; the other checks are kept for paths built in memory. The model does
+  the rest (a component that does not exist, an index past the array): its refusal is its own
+  `DataAccessError`. The IEC 61850 profile requires `valt` of a server that declares arrays (D-033), so such a
+  server calls `with_alternate_access()`.
+- **Sources**: ISO 9506-2 §14.4 (alternate access), §8.1.3.15.4 (`valt`), Table 26 (`object-value-invalid`);
+  IEC 61850-8-1 Table 128 (`valt`, c3 for arrays) and MMS-007.
+- **Confidence**: high for the paths and the bounds, which the unit tests build from the generated types;
+  high for the refusals, which the end-to-end tests observe at the client and at the item.
+- **Test**: unit tests in `server/access.rs` (5); `crates/igs-iso9506-mms/tests/alternate_access.rs` (4): the model
+  reads the path of an item; the generic VMD refuses it; without `valt` the client's request is refused before
+  it is sent; an empty range fails its item and the model reads nothing.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

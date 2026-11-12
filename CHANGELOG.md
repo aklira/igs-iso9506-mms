@@ -30,6 +30,9 @@ The next release is **2.0.0**: the public types change (decision D-032).
   The `mMSString` of `TypeDescription` is the one such component. The decoder reads both forms under every
   profile (D-034).
 - The VMD checks that a `UtcTime` value of a described type is eight octets and valid.
+- `server::access`: `steps` reads the path of an alternate access (`AccessStep`: component, index, range,
+  all elements), checked by its bounds (`PathError`). `ServerConfig::with_alternate_access` negotiates `valt`,
+  so a model receives the requests that carry an alternate access (D-035). The generic VMD still refuses them.
 
 ### Changed
 

@@ -10,6 +10,7 @@
 //! the PDUs against the CBBs it negotiated (the link layer, ISO 9506-2 §8), refuses those it does not
 //! serve with a Reject PDU, and reports the unconfirmed PDUs that [`Server::publish`] sends.
 
+pub mod access;
 mod service;
 
 use std::collections::VecDeque;
@@ -90,6 +91,41 @@ impl ServerConfig {
     pub fn with_tls(mut self, backend: Secure) -> Self {
         self.tls = Some(backend);
         self
+    }
+
+    /// Serves alternate access (task N4): the `valt` CBB is negotiated, so the requests that carry an
+    /// alternate access reach the model, which reads their paths with [`access::steps`]. The generic VMD
+    /// still refuses them, item by item.
+    pub fn with_alternate_access(mut self) -> Self {
+        use igs_iso9506_mms_codec::generated::tables::PARAMETER_SUPPORT_OPTIONS;
+        if let Some(named) = PARAMETER_SUPPORT_OPTIONS
+            .iter()
+            .find(|named| named.name == "valt")
+        {
+            set_bit(
+                &mut self.capabilities.parameter_cbb,
+                named.position as usize,
+            );
+        }
+        self
+    }
+}
+
+/// Sets one bit of a negotiation bit string, extending it when the bit lies past its end.
+fn set_bit(bits: &mut igs_iso9506_mms_codec::schema::BitString, position: usize) {
+    let length = bits
+        .bytes
+        .len()
+        .saturating_mul(8)
+        .saturating_sub(usize::from(bits.unused));
+    let length = length.max(position.saturating_add(1));
+    let octets = length.div_ceil(8);
+    bits.bytes.resize(octets, 0);
+    bits.unused = u8::try_from(octets.saturating_mul(8).saturating_sub(length)).unwrap_or(0);
+    if let Some(byte) = bits.bytes.get_mut(position >> 3) {
+        *byte |= 0x80u8
+            .checked_shr(u32::try_from(position & 7).unwrap_or(0))
+            .unwrap_or(0);
     }
 }
 
