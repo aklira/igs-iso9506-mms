@@ -309,33 +309,50 @@ macro_rules! typed_service {
 
 typed_service!(
     /// GetNameList: the names of the objects of a class and scope.
-    get_name_list, GetNameList, GetNameListRequest, GetNameListResponse
+    get_name_list,
+    GetNameList,
+    GetNameListRequest,
+    GetNameListResponse
 );
 typed_service!(
     /// Read: the values of the variables named.
-    read, Read, ReadRequest, ReadResponse
+    read,
+    Read,
+    ReadRequest,
+    ReadResponse
 );
 typed_service!(
     /// Write: the values of the variables named.
-    write, Write, WriteRequest, WriteResponse
+    write,
+    Write,
+    WriteRequest,
+    WriteResponse
 );
 typed_service!(
     /// GetVariableAccessAttributes: the type and the address of a variable.
-    get_variable_access_attributes, GetVariableAccessAttributes,
-    GetVariableAccessAttributesRequest, GetVariableAccessAttributesResponse
+    get_variable_access_attributes,
+    GetVariableAccessAttributes,
+    GetVariableAccessAttributesRequest,
+    GetVariableAccessAttributesResponse
 );
 typed_service!(
     /// DefineNamedVariableList: defines a list of variables.
-    define_named_variable_list, DefineNamedVariableList,
-    DefineNamedVariableListRequest, DefineNamedVariableListResponse
+    define_named_variable_list,
+    DefineNamedVariableList,
+    DefineNamedVariableListRequest,
+    DefineNamedVariableListResponse
 );
 typed_service!(
     /// GetNamedVariableListAttributes: the variables of a list.
-    get_named_variable_list_attributes, GetNamedVariableListAttributes,
-    GetNamedVariableListAttributesRequest, GetNamedVariableListAttributesResponse
+    get_named_variable_list_attributes,
+    GetNamedVariableListAttributes,
+    GetNamedVariableListAttributesRequest,
+    GetNamedVariableListAttributesResponse
 );
 typed_service!(
     /// DeleteNamedVariableList: deletes lists of variables.
-    delete_named_variable_list, DeleteNamedVariableList,
-    DeleteNamedVariableListRequest, DeleteNamedVariableListResponse
+    delete_named_variable_list,
+    DeleteNamedVariableList,
+    DeleteNamedVariableListRequest,
+    DeleteNamedVariableListResponse
 );

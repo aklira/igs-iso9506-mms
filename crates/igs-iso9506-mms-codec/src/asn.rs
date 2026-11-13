@@ -461,73 +461,129 @@ macro_rules! primitive {
 
 primitive!(
     /// BOOLEAN.
-    Boolean, "BOOLEAN", bool, Identifier::BOOLEAN,
-    |e| ber::boolean(e), |v, w, id| w.boolean(id, *v)
+    Boolean,
+    "BOOLEAN",
+    bool,
+    Identifier::BOOLEAN,
+    |e| ber::boolean(e),
+    |v, w, id| w.boolean(id, *v)
 );
 primitive!(
     /// NULL.
-    Null, "NULL", (), Identifier::NULL,
-    |e| ber::null(e), |_v, w, id| w.null(id)
+    Null,
+    "NULL",
+    (),
+    Identifier::NULL,
+    |e| ber::null(e),
+    |_v, w, id| w.null(id)
 );
 primitive!(
     /// INTEGER, within 64 bits.
-    Integer, "INTEGER", i64, Identifier::INTEGER,
-    |e| ber::integer_i64(e), |v, w, id| w.integer(id, *v)
+    Integer,
+    "INTEGER",
+    i64,
+    Identifier::INTEGER,
+    |e| ber::integer_i64(e),
+    |v, w, id| w.integer(id, *v)
 );
 primitive!(
     /// INTEGER, within 128 bits.
-    Integer128, "INTEGER", i128, Identifier::INTEGER,
-    |e| ber::integer_i128(e), |v, w, id| w.integer_i128(id, *v)
+    Integer128,
+    "INTEGER",
+    i128,
+    Identifier::INTEGER,
+    |e| ber::integer_i128(e),
+    |v, w, id| w.integer_i128(id, *v)
 );
 primitive!(
     /// INTEGER that shall not be negative, within 128 bits.
-    Unsigned128, "INTEGER", u128, Identifier::INTEGER,
-    |e| ber::integer_u128(e), |v, w, id| w.unsigned_u128(id, *v)
+    Unsigned128,
+    "INTEGER",
+    u128,
+    Identifier::INTEGER,
+    |e| ber::integer_u128(e),
+    |v, w, id| w.unsigned_u128(id, *v)
 );
 primitive!(
     /// ENUMERATED.
-    Enumerated, "ENUMERATED", i64, Identifier::ENUMERATED,
-    |e| ber::enumerated(e), |v, w, id| w.enumerated(id, *v)
+    Enumerated,
+    "ENUMERATED",
+    i64,
+    Identifier::ENUMERATED,
+    |e| ber::enumerated(e),
+    |v, w, id| w.enumerated(id, *v)
 );
 primitive!(
     /// BIT STRING.
-    BitStr, "BIT STRING", BitString, Identifier::BIT_STRING,
-    |e| ber::bit_string(e), |v, w, id| w.bit_string(id, v)?
+    BitStr,
+    "BIT STRING",
+    BitString,
+    Identifier::BIT_STRING,
+    |e| ber::bit_string(e),
+    |v, w, id| w.bit_string(id, v)?
 );
 primitive!(
     /// OCTET STRING.
-    Octets, "OCTET STRING", Vec<u8>, Identifier::OCTET_STRING,
-    |e| ber::octet_string(e), |v, w, id| w.octet_string(id, v)
+    Octets,
+    "OCTET STRING",
+    Vec<u8>,
+    Identifier::OCTET_STRING,
+    |e| ber::octet_string(e),
+    |v, w, id| w.octet_string(id, v)
 );
 primitive!(
     /// OBJECT IDENTIFIER.
-    Oid, "OBJECT IDENTIFIER", ObjectIdentifier, Identifier::OBJECT_IDENTIFIER,
-    |e| ber::object_identifier(e), |v, w, id| w.object_identifier(id, v)?
+    Oid,
+    "OBJECT IDENTIFIER",
+    ObjectIdentifier,
+    Identifier::OBJECT_IDENTIFIER,
+    |e| ber::object_identifier(e),
+    |v, w, id| w.object_identifier(id, v)?
 );
 primitive!(
     /// VisibleString.
-    Visible, "VisibleString", String, Identifier::VISIBLE_STRING,
-    |e| ber::string(e, Charset::Visible), |v, w, id| w.string(id, v, Charset::Visible)?
+    Visible,
+    "VisibleString",
+    String,
+    Identifier::VISIBLE_STRING,
+    |e| ber::string(e, Charset::Visible),
+    |v, w, id| w.string(id, v, Charset::Visible)?
 );
 primitive!(
     /// GraphicString, without escape sequences (see the BER layer).
-    Graphic, "GraphicString", String, Identifier::GRAPHIC_STRING,
-    |e| ber::string(e, Charset::Graphic), |v, w, id| w.string(id, v, Charset::Graphic)?
+    Graphic,
+    "GraphicString",
+    String,
+    Identifier::GRAPHIC_STRING,
+    |e| ber::string(e, Charset::Graphic),
+    |v, w, id| w.string(id, v, Charset::Graphic)?
 );
 primitive!(
     /// UTF8String.
-    Utf8, "UTF8String", String, Identifier::UTF8_STRING,
-    |e| ber::string(e, Charset::Utf8), |v, w, id| w.string(id, v, Charset::Utf8)?
+    Utf8,
+    "UTF8String",
+    String,
+    Identifier::UTF8_STRING,
+    |e| ber::string(e, Charset::Utf8),
+    |v, w, id| w.string(id, v, Charset::Utf8)?
 );
 primitive!(
     /// GeneralizedTime, kept as its characters (VisibleString, X.680 §46.3).
-    GeneralizedTime, "GeneralizedTime", String, Identifier::GENERALIZED_TIME,
-    |e| ber::string(e, Charset::Visible), |v, w, id| w.string(id, v, Charset::Visible)?
+    GeneralizedTime,
+    "GeneralizedTime",
+    String,
+    Identifier::GENERALIZED_TIME,
+    |e| ber::string(e, Charset::Visible),
+    |v, w, id| w.string(id, v, Charset::Visible)?
 );
 primitive!(
     /// UTCTime, kept as its characters (VisibleString, X.680 §47.3).
-    UtcTime, "UTCTime", String, Identifier::universal(23),
-    |e| ber::string(e, Charset::Visible), |v, w, id| w.string(id, v, Charset::Visible)?
+    UtcTime,
+    "UTCTime",
+    String,
+    Identifier::universal(23),
+    |e| ber::string(e, Charset::Visible),
+    |v, w, id| w.string(id, v, Charset::Visible)?
 );
 
 macro_rules! raw_kind {
@@ -565,11 +621,15 @@ macro_rules! raw_kind {
 
 raw_kind!(
     /// EXTERNAL, kept as raw BER with its universal tag.
-    External, "EXTERNAL", 8
+    External,
+    "EXTERNAL",
+    8
 );
 raw_kind!(
     /// EMBEDDED PDV, kept as raw BER with its universal tag.
-    EmbeddedPdv, "EMBEDDED PDV", 11
+    EmbeddedPdv,
+    "EMBEDDED PDV",
+    11
 );
 
 /// An open type or ANY: any one encoding, kept as raw BER.
