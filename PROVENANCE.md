@@ -1027,6 +1027,37 @@ silent, to be confirmed by an observation test against other implementations.
 - **Confidence**: high. Tests: `vmd/name.rs` (a limit admits its profile's identifiers), `server/service.rs` (a name of 40
   characters is served by a VMD with the IEC limit and refused by the default one).
 
+### D-048 — ReadJournal for the IEC 61850 log services (task N7 of igs-iec61850-mms, Q5)
+
+- **Sources**: ISO 9506-2 clause 23.2 (the ReadJournal-Request and -Response, the JournalEntry, the EntryContent and its data form);
+  ISO 9506-1 clause 23.2 and table 127 (the parameters and their meaning: the range start, the range stop, the list of variables, the
+  entry to start after); ISO 9506-1 (the definitions of EC-State, Journal-Variable and ApplicationReference, in the parsed object module);
+  IEC 61850-8-1 table 128, the condition c13 of readJournal (required on the server when the QueryLogByTime or QueryLogAfter services are
+  declared) and clause 17.3.
+  The types are generated from the ASN.1 already parsed by the generator, so no clause text is copied.
+- **Codegen**: the generator takes ReadJournal in a new scope `iec61850` (added in `xtask/src/main.rs`, not in the TASE.2 conformance file,
+  which does not require it). Its types are generated (14 new types), and the service is in the CHOICE of the requests and responses. The
+  in-scope flag of the service table is set for it, so the client and the server advertise it. Consequence: a TASE.2 association also offers
+  the bit of ReadJournal, which the library now answers; the TASE.2 services are unchanged.
+- **Profile**: the condition c13 names the feature `Logs` (the text mentions QueryLog), a new `Feature`. A profile model with `logs` true
+  requires readJournal on the server, and both sides negotiate it. The client of the IEC profile sends it when the bit is negotiated.
+- **Negotiation check**: a request or response of ReadJournal is checked against the negotiated service bit (`need_service`), not against a
+  parameter CBB. Before this fix every ReadJournal was refused as not negotiated, because the check only read the parameter CBBs.
+- **Journals**: a journal is held by a domain (`Vmd::define_journal`, bounded: the oldest entry is discarded), and the application enters
+  entries with `Vmd::append_journal`, before the server binds. A runtime append by the application is not served yet (see the gaps).
+- **Selection** (9506-1 table 127): the range start is a time (entries from it, included) or an entry identifier (from that entry, included;
+  an identifier that is not held selects nothing); the range stop is a time (up to it, included); the number of entries limits the answer, and
+  its sign gives the order (negative: newest first); `more follows` tells that entries were left out by the number; the list of variables keeps
+  the entries that hold one of its tags; the entry to start after is skipped through (the entry is not returned), or, when it is not held, the
+  entries from its time are kept, with those of the same time. A journal that is not held, or a scope that is not a domain, is refused.
+- **Confidence**: high for the types (generated from the ASN.1) and the profile rule; medium for the selection semantics of an identifier that is
+  not held and of the order of the number of entries, which the table words loosely.
+- **Tests**: `tests/journal.rs` (seven tests, through a client and a server with the IEC profile that declares logs): the order, the time range,
+  the number of entries and its sign, the list of variables, the entry to start after, a refused journal, and the capacity of a journal. The
+  codec tests of the service scope and of the type count were updated (`tests/generated.rs`).
+- **Gaps left**: the runtime entries of the application (the server owns the VMD once bound); the journal class in GetNameList (the reference
+  client's listing of journals still ends with error 82, G14); the writes of journals (WriteJournal, Initialize, Create, Delete).
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

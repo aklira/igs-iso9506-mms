@@ -21,7 +21,8 @@ use igs_iso9506_mms_codec::generated::types::{
     DeleteNamedVariableListResponse, GetNameListRequest, GetNameListResponse,
     GetNamedVariableListAttributesRequest, GetNamedVariableListAttributesResponse,
     GetVariableAccessAttributesRequest, GetVariableAccessAttributesResponse, IdentifyRequest,
-    IdentifyResponse, ReadRequest, ReadResponse, UnconfirmedService, WriteRequest, WriteResponse,
+    IdentifyResponse, ReadJournalRequest, ReadJournalResponse, ReadRequest, ReadResponse,
+    UnconfirmedService, WriteRequest, WriteResponse,
 };
 use igs_iso9506_mms_codec::mms::profile::Profile;
 use igs_iso9506_mms_link::association::Capabilities;
@@ -355,4 +356,11 @@ typed_service!(
     DeleteNamedVariableList,
     DeleteNamedVariableListRequest,
     DeleteNamedVariableListResponse
+);
+typed_service!(
+    /// ReadJournal: the entries of a journal that the filters select (ISO 9506-2 clause 23.2); needs the `readJournal` service.
+    read_journal,
+    ReadJournal,
+    ReadJournalRequest,
+    ReadJournalResponse
 );

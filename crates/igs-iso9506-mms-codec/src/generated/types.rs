@@ -24,7 +24,7 @@ use crate::schema::{
 use proptest::strategy::Strategy as _;
 
 /// Number of generated types.
-pub const TYPE_COUNT: usize = 145;
+pub const TYPE_COUNT: usize = 159;
 
 /// ASN.1 type `AARE-apdu`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3447,6 +3447,144 @@ impl crate::strategy::Values for ApplicationContextNameList {
     }
 }
 
+/// ASN.1 type `ApplicationReference`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationReference {
+    /// Component `ap-title`.
+    pub ap_title: Option<APTitle>,
+    /// Component `ap-invocation-id`.
+    pub ap_invocation_id: Option<APInvocationIdentifier>,
+    /// Component `ae-qualifier`.
+    pub ae_qualifier: Option<AEQualifier>,
+    /// Component `ae-invocation-id`.
+    pub ae_invocation_id: Option<AEInvocationIdentifier>,
+}
+
+impl ApplicationReference {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "ap-title",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "ap-invocation-id",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "ae-qualifier",
+            tag: Some(Tag::new(TagClass::Context, 2, Tagging::Explicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "ae-invocation-id",
+            tag: Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)),
+            presence: Presence::Optional,
+        },
+    ];
+}
+
+impl ApplicationReference {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "ApplicationReference", None)?;
+        let ap_title =
+            c.optional::<APTitle>(Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)))?;
+        let ap_invocation_id = c.optional::<APInvocationIdentifier>(Some(Tag::new(
+            TagClass::Context,
+            1,
+            Tagging::Explicit,
+        )))?;
+        let ae_qualifier =
+            c.optional::<AEQualifier>(Some(Tag::new(TagClass::Context, 2, Tagging::Explicit)))?;
+        let ae_invocation_id = c.optional::<AEInvocationIdentifier>(Some(Tag::new(
+            TagClass::Context,
+            3,
+            Tagging::Explicit,
+        )))?;
+        c.finish()?;
+        Ok(Self {
+            ap_title,
+            ap_invocation_id,
+            ae_qualifier,
+            ae_invocation_id,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode_optional::<APTitle>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+                &self.ap_title,
+                w,
+            )?;
+            asn::encode_optional::<APInvocationIdentifier>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+                &self.ap_invocation_id,
+                w,
+            )?;
+            asn::encode_optional::<AEQualifier>(
+                Some(Tag::new(TagClass::Context, 2, Tagging::Explicit)),
+                &self.ae_qualifier,
+                w,
+            )?;
+            asn::encode_optional::<AEInvocationIdentifier>(
+                Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)),
+                &self.ae_invocation_id,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for ApplicationReference {
+    type Value = Self;
+    const NAME: &'static str = "ApplicationReference";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ApplicationReference {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<APTitle>(depth)),
+            proptest::option::of(crate::strategy::values::<APInvocationIdentifier>(depth)),
+            proptest::option::of(crate::strategy::values::<AEQualifier>(depth)),
+            proptest::option::of(crate::strategy::values::<AEInvocationIdentifier>(depth)),
+        ),)
+            .prop_map(
+                |((ap_title, ap_invocation_id, ae_qualifier, ae_invocation_id),)| Self {
+                    ap_title,
+                    ap_invocation_id,
+                    ae_qualifier,
+                    ae_invocation_id,
+                },
+            )
+            .boxed()
+    }
+}
+
 /// ASN.1 type `Associate-result`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssociateResult(pub i64);
@@ -4805,6 +4943,8 @@ pub enum ConfirmedServiceRequest {
     GetNamedVariableListAttributes(GetNamedVariableListAttributesRequest),
     /// Alternative `deleteNamedVariableList`.
     DeleteNamedVariableList(DeleteNamedVariableListRequest),
+    /// Alternative `readJournal`.
+    ReadJournal(ReadJournalRequest),
     /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
@@ -4857,6 +4997,11 @@ impl ConfirmedServiceRequest {
             tag: Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
             presence: Presence::Required,
         },
+        Member {
+            name: "readJournal",
+            tag: Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
     ];
 }
 
@@ -4885,6 +5030,9 @@ impl ConfirmedServiceRequest {
             id,
         ) || asn::accepts::<DeleteNamedVariableListRequest>(
             Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<ReadJournalRequest>(
+            Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
             id,
         ) || id.class == TagClass::Context
     }
@@ -4966,6 +5114,15 @@ impl ConfirmedServiceRequest {
                 e,
             )?));
         }
+        if asn::accepts::<ReadJournalRequest>(
+            Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::ReadJournal(asn::decode::<ReadJournalRequest>(
+                Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+                e,
+            )?));
+        }
         if id.class == TagClass::Context {
             return Ok(Self::Unsupported {
                 tag: id.number,
@@ -5028,6 +5185,11 @@ impl ConfirmedServiceRequest {
                 v,
                 w,
             ),
+            Self::ReadJournal(v) => asn::encode::<ReadJournalRequest>(
+                Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+                v,
+                w,
+            ),
             Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
         }
     }
@@ -5042,6 +5204,7 @@ impl ConfirmedServiceRequest {
             Self::DefineNamedVariableList(_) => 11,
             Self::GetNamedVariableListAttributes(_) => 12,
             Self::DeleteNamedVariableList(_) => 13,
+            Self::ReadJournal(_) => 65,
             Self::Unsupported { tag, .. } => *tag,
         }
     }
@@ -5095,7 +5258,10 @@ impl crate::strategy::Values for ConfirmedServiceRequest {
             crate::strategy::values::<DeleteNamedVariableListRequest>(depth)
                 .prop_map(Self::DeleteNamedVariableList)
                 .boxed(),
-            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13])
+            crate::strategy::values::<ReadJournalRequest>(depth)
+                .prop_map(Self::ReadJournal)
+                .boxed(),
+            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13, 65])
                 .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
                 .boxed(),
         ];
@@ -5132,6 +5298,9 @@ impl ConfirmedServiceRequest {
             Self::DeleteNamedVariableList(value) => {
                 value.walk_strings(f)?;
             }
+            Self::ReadJournal(value) => {
+                value.walk_strings(f)?;
+            }
             _ => {}
         }
         Ok(())
@@ -5157,6 +5326,8 @@ pub enum ConfirmedServiceResponse {
     GetNamedVariableListAttributes(GetNamedVariableListAttributesResponse),
     /// Alternative `deleteNamedVariableList`.
     DeleteNamedVariableList(DeleteNamedVariableListResponse),
+    /// Alternative `readJournal`.
+    ReadJournal(ReadJournalResponse),
     /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
@@ -5209,6 +5380,11 @@ impl ConfirmedServiceResponse {
             tag: Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
             presence: Presence::Required,
         },
+        Member {
+            name: "readJournal",
+            tag: Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
     ];
 }
 
@@ -5237,6 +5413,9 @@ impl ConfirmedServiceResponse {
             id,
         ) || asn::accepts::<DeleteNamedVariableListResponse>(
             Some(Tag::new(TagClass::Context, 13, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<ReadJournalResponse>(
+            Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
             id,
         ) || id.class == TagClass::Context
     }
@@ -5320,6 +5499,15 @@ impl ConfirmedServiceResponse {
                 e,
             )?));
         }
+        if asn::accepts::<ReadJournalResponse>(
+            Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::ReadJournal(asn::decode::<ReadJournalResponse>(
+                Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+                e,
+            )?));
+        }
         if id.class == TagClass::Context {
             return Ok(Self::Unsupported {
                 tag: id.number,
@@ -5382,6 +5570,11 @@ impl ConfirmedServiceResponse {
                 v,
                 w,
             ),
+            Self::ReadJournal(v) => asn::encode::<ReadJournalResponse>(
+                Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+                v,
+                w,
+            ),
             Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
         }
     }
@@ -5396,6 +5589,7 @@ impl ConfirmedServiceResponse {
             Self::DefineNamedVariableList(_) => 11,
             Self::GetNamedVariableListAttributes(_) => 12,
             Self::DeleteNamedVariableList(_) => 13,
+            Self::ReadJournal(_) => 65,
             Self::Unsupported { tag, .. } => *tag,
         }
     }
@@ -5449,7 +5643,10 @@ impl crate::strategy::Values for ConfirmedServiceResponse {
             crate::strategy::values::<DeleteNamedVariableListResponse>(depth)
                 .prop_map(Self::DeleteNamedVariableList)
                 .boxed(),
-            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13])
+            crate::strategy::values::<ReadJournalResponse>(depth)
+                .prop_map(Self::ReadJournal)
+                .boxed(),
+            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13, 65])
                 .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
                 .boxed(),
         ];
@@ -5475,6 +5672,9 @@ impl ConfirmedServiceResponse {
                 value.walk_strings(f)?;
             }
             Self::GetNamedVariableListAttributes(value) => {
+                value.walk_strings(f)?;
+            }
+            Self::ReadJournal(value) => {
                 value.walk_strings(f)?;
             }
             _ => {}
@@ -6756,6 +6956,543 @@ impl crate::strategy::Values for DeleteNamedVariableListResponse {
                 number_deleted,
             })
             .boxed()
+    }
+}
+
+/// ASN.1 type `EC-State`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ECState(pub i64);
+
+impl ECState {
+    /// Named value `disabled`.
+    pub const DISABLED: Self = Self(0);
+    /// Named value `idle`.
+    pub const IDLE: Self = Self(1);
+    /// Named value `active`.
+    pub const ACTIVE: Self = Self(2);
+    /// Allowed values, as inclusive ranges.
+    pub const VALUES: &'static [(i64, i64)] = &[(0, 2)];
+}
+
+impl ECState {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::Integer as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let value = Self(<asn::Integer as asn::Codec>::decode(e)?);
+        value.check()?;
+        Ok(value)
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        self.check()?;
+        <asn::Integer as asn::Codec>::encode(&self.0, w, implicit)
+    }
+    /// The value, if it meets the constraint of the type.
+    pub fn new(value: i64) -> Result<Self, asn::Error> {
+        let value = Self(value);
+        value.check()?;
+        Ok(value)
+    }
+    /// Checks the value against the constraint of the type.
+    pub fn check(&self) -> Result<(), asn::Error> {
+        asn::check_values("EC-State", Self::VALUES, self.0)?;
+        Ok(())
+    }
+}
+
+impl asn::Codec for ECState {
+    type Value = Self;
+    const NAME: &'static str = "EC-State";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ECState {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::ranged(Self::VALUES).prop_map(Self).boxed()
+    }
+}
+
+/// ASN.1 type `EntryContent`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryContent {
+    /// Component `occurrenceTime`.
+    pub occurrence_time: TimeOfDay,
+    /// Component `entryForm`.
+    pub entry_form: EntryContentEntryForm,
+}
+
+impl EntryContent {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "occurrenceTime",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "entryForm",
+            tag: None,
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl EntryContent {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "EntryContent", None)?;
+        let occurrence_time = c.required::<TimeOfDay>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "occurrenceTime",
+        )?;
+        let entry_form = c.required::<EntryContentEntryForm>(None, "entryForm")?;
+        c.finish()?;
+        Ok(Self {
+            occurrence_time,
+            entry_form,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<TimeOfDay>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.occurrence_time,
+                w,
+            )?;
+            asn::encode::<EntryContentEntryForm>(None, &self.entry_form, w)?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for EntryContent {
+    type Value = Self;
+    const NAME: &'static str = "EntryContent";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for EntryContent {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<TimeOfDay>(depth),
+            crate::strategy::values::<EntryContentEntryForm>(depth),
+        ),)
+            .prop_map(|((occurrence_time, entry_form),)| Self {
+                occurrence_time,
+                entry_form,
+            })
+            .boxed()
+    }
+}
+
+impl EntryContent {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.entry_form.walk_strings(f)?;
+        Ok(())
+    }
+}
+
+/// ASN.1 type `EntryContentEntryForm`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntryContentEntryForm {
+    /// Alternative `data`.
+    Data(EntryContentEntryFormData),
+    /// Alternative `annotation`.
+    Annotation(MMSString),
+}
+
+impl EntryContentEntryForm {
+    /// Components with their tags.
+    pub const ALTERNATIVES: &'static [Member] = &[
+        Member {
+            name: "data",
+            tag: Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "annotation",
+            tag: Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl EntryContentEntryForm {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::accepts::<EntryContentEntryFormData>(
+            Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<MMSString>(Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)), id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let id = e.identifier;
+        if asn::accepts::<EntryContentEntryFormData>(
+            Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::Data(asn::decode::<EntryContentEntryFormData>(
+                Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<MMSString>(Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)), id) {
+            return Ok(Self::Annotation(asn::decode::<MMSString>(
+                Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)),
+                e,
+            )?));
+        }
+        Err(asn::Error::NoAlternative {
+            ty: "EntryContentEntryForm",
+            found: id,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        asn::no_implicit(implicit, "EntryContentEntryForm")?;
+        match self {
+            Self::Data(v) => asn::encode::<EntryContentEntryFormData>(
+                Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::Annotation(v) => asn::encode::<MMSString>(
+                Some(Tag::new(TagClass::Context, 3, Tagging::Explicit)),
+                v,
+                w,
+            ),
+        }
+    }
+}
+
+impl asn::Codec for EntryContentEntryForm {
+    type Value = Self;
+    const NAME: &'static str = "EntryContentEntryForm";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for EntryContentEntryForm {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<EntryContentEntryFormData>(depth)
+                .prop_map(Self::Data)
+                .boxed(),
+            crate::strategy::values::<MMSString>(depth)
+                .prop_map(Self::Annotation)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+impl EntryContentEntryForm {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        #[allow(clippy::single_match)]
+        match self {
+            Self::Data(value) => {
+                value.walk_strings(f)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+/// ASN.1 type `EntryContentEntryFormData`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryContentEntryFormData {
+    /// Component `event`.
+    pub event: Option<EntryContentEntryFormDataEvent>,
+    /// Component `listOfVariables`.
+    pub list_of_variables: Option<Vec<JournalVariable>>,
+}
+
+impl EntryContentEntryFormData {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "event",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "listOfVariables",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+    ];
+}
+
+impl EntryContentEntryFormData {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "EntryContentEntryFormData", None)?;
+        let event = c.optional::<EntryContentEntryFormDataEvent>(Some(Tag::new(
+            TagClass::Context,
+            0,
+            Tagging::Implicit,
+        )))?;
+        let list_of_variables = c.optional::<asn::ListOf<JournalVariable>>(Some(Tag::new(
+            TagClass::Context,
+            1,
+            Tagging::Implicit,
+        )))?;
+        c.finish()?;
+        Ok(Self {
+            event,
+            list_of_variables,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode_optional::<EntryContentEntryFormDataEvent>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.event,
+                w,
+            )?;
+            asn::encode_optional::<asn::ListOf<JournalVariable>>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.list_of_variables,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for EntryContentEntryFormData {
+    type Value = Self;
+    const NAME: &'static str = "EntryContentEntryFormData";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for EntryContentEntryFormData {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<EntryContentEntryFormDataEvent>(
+                depth,
+            )),
+            proptest::option::of(crate::strategy::values::<asn::ListOf<JournalVariable>>(
+                depth,
+            )),
+        ),)
+            .prop_map(|((event, list_of_variables),)| Self {
+                event,
+                list_of_variables,
+            })
+            .boxed()
+    }
+}
+
+impl EntryContentEntryFormData {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if let Some(value) = &self.event {
+            value.walk_strings(f)?;
+        }
+        if let Some(value) = &self.list_of_variables {
+            for item in value {
+                item.walk_strings(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// ASN.1 type `EntryContentEntryFormDataEvent`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryContentEntryFormDataEvent {
+    /// Component `eventConditionName`.
+    pub event_condition_name: ObjectName,
+    /// Component `currentState`.
+    pub current_state: ECState,
+}
+
+impl EntryContentEntryFormDataEvent {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "eventConditionName",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "currentState",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl EntryContentEntryFormDataEvent {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "EntryContentEntryFormDataEvent", None)?;
+        let event_condition_name = c.required::<ObjectName>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            "eventConditionName",
+        )?;
+        let current_state = c.required::<ECState>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            "currentState",
+        )?;
+        c.finish()?;
+        Ok(Self {
+            event_condition_name,
+            current_state,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<ObjectName>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+                &self.event_condition_name,
+                w,
+            )?;
+            asn::encode::<ECState>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.current_state,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for EntryContentEntryFormDataEvent {
+    type Value = Self;
+    const NAME: &'static str = "EntryContentEntryFormDataEvent";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for EntryContentEntryFormDataEvent {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<ObjectName>(depth),
+            crate::strategy::values::<ECState>(depth),
+        ),)
+            .prop_map(|((event_condition_name, current_state),)| Self {
+                event_condition_name,
+                current_state,
+            })
+            .boxed()
+    }
+}
+
+impl EntryContentEntryFormDataEvent {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.event_condition_name.walk_strings(f)?;
+        Ok(())
     }
 }
 
@@ -9256,6 +9993,302 @@ impl crate::strategy::Values for Integer8 {
     }
 }
 
+/// ASN.1 type `JournalEntry`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JournalEntry {
+    /// Component `entryIdentifier`.
+    pub entry_identifier: Vec<u8>,
+    /// Component `originatingApplication`.
+    pub originating_application: ApplicationReference,
+    /// Component `entryContent`.
+    pub entry_content: EntryContent,
+}
+
+impl JournalEntry {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "entryIdentifier",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "originatingApplication",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "entryContent",
+            tag: Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl JournalEntry {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "JournalEntry", None)?;
+        let entry_identifier = c.required::<asn::Octets>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "entryIdentifier",
+        )?;
+        let originating_application = c.required::<ApplicationReference>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+            "originatingApplication",
+        )?;
+        let entry_content = c.required::<EntryContent>(
+            Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+            "entryContent",
+        )?;
+        c.finish()?;
+        Ok(Self {
+            entry_identifier,
+            originating_application,
+            entry_content,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<asn::Octets>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.entry_identifier,
+                w,
+            )?;
+            asn::encode::<ApplicationReference>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+                &self.originating_application,
+                w,
+            )?;
+            asn::encode::<EntryContent>(
+                Some(Tag::new(TagClass::Context, 2, Tagging::Implicit)),
+                &self.entry_content,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for JournalEntry {
+    type Value = Self;
+    const NAME: &'static str = "JournalEntry";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for JournalEntry {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::Octets>(depth),
+            crate::strategy::values::<ApplicationReference>(depth),
+            crate::strategy::values::<EntryContent>(depth),
+        ),)
+            .prop_map(
+                |((entry_identifier, originating_application, entry_content),)| Self {
+                    entry_identifier,
+                    originating_application,
+                    entry_content,
+                },
+            )
+            .boxed()
+    }
+}
+
+impl JournalEntry {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.entry_content.walk_strings(f)?;
+        Ok(())
+    }
+}
+
+/// ASN.1 type `Journal-Variable`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JournalVariable {
+    /// Component `variableTag`.
+    pub variable_tag: MMS255String,
+    /// Component `valueSpecification`.
+    pub value_specification: Data,
+}
+
+impl JournalVariable {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "variableTag",
+            tag: None,
+            presence: Presence::Required,
+        },
+        Member {
+            name: "valueSpecification",
+            tag: None,
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl JournalVariable {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "Journal-Variable", None)?;
+        let variable_tag = c.required::<MMS255String>(None, "variableTag")?;
+        let value_specification = c.required::<Data>(None, "valueSpecification")?;
+        c.finish()?;
+        Ok(Self {
+            variable_tag,
+            value_specification,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<MMS255String>(None, &self.variable_tag, w)?;
+            asn::encode::<Data>(None, &self.value_specification, w)?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for JournalVariable {
+    type Value = Self;
+    const NAME: &'static str = "Journal-Variable";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for JournalVariable {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<MMS255String>(depth),
+            crate::strategy::values::<Data>(depth),
+        ),)
+            .prop_map(|((variable_tag, value_specification),)| Self {
+                variable_tag,
+                value_specification,
+            })
+            .boxed()
+    }
+}
+
+impl JournalVariable {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.value_specification.walk_strings(f)?;
+        Ok(())
+    }
+}
+
+/// ASN.1 type `MMS255String`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MMS255String(pub String);
+
+impl MMS255String {
+    /// Allowed sizes, as inclusive ranges.
+    pub const SIZES: &'static [(i64, i64)] = &[(1, 255)];
+}
+
+impl MMS255String {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::Visible as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let value = Self(<asn::Visible as asn::Codec>::decode(e)?);
+        value.check()?;
+        Ok(value)
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        self.check()?;
+        <asn::Visible as asn::Codec>::encode(&self.0, w, implicit)
+    }
+    /// The value, if it meets the constraint of the type.
+    pub fn new(value: String) -> Result<Self, asn::Error> {
+        let value = Self(value);
+        value.check()?;
+        Ok(value)
+    }
+    /// Checks the value against the constraint of the type.
+    pub fn check(&self) -> Result<(), asn::Error> {
+        asn::check_sizes("MMS255String", Self::SIZES, &self.0)?;
+        Ok(())
+    }
+}
+
+impl asn::Codec for MMS255String {
+    type Value = Self;
+    const NAME: &'static str = "MMS255String";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for MMS255String {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::sized::<asn::Visible>(Self::SIZES, depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
 /// ASN.1 type `MMSString`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MMSString(pub String);
@@ -10648,6 +11681,614 @@ impl crate::strategy::Values for RLRQApdu {
                 user_information,
             })
             .boxed()
+    }
+}
+
+/// ASN.1 type `ReadJournal-Request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadJournalRequest {
+    /// Component `journalName`.
+    pub journal_name: ObjectName,
+    /// Component `rangeStartSpecification`.
+    pub range_start_specification: Option<ReadJournalRequestRangeStartSpecification>,
+    /// Component `rangeStopSpecification`.
+    pub range_stop_specification: Option<ReadJournalRequestRangeStopSpecification>,
+    /// Component `listOfVariables`.
+    pub list_of_variables: Option<Vec<String>>,
+    /// Component `entryToStartAfter`.
+    pub entry_to_start_after: Option<ReadJournalRequestEntryToStartAfter>,
+}
+
+impl ReadJournalRequest {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "journalName",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "rangeStartSpecification",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "rangeStopSpecification",
+            tag: Some(Tag::new(TagClass::Context, 2, Tagging::Explicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "listOfVariables",
+            tag: Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "entryToStartAfter",
+            tag: Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+    ];
+}
+
+impl ReadJournalRequest {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "ReadJournal-Request", None)?;
+        let journal_name = c.required::<ObjectName>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            "journalName",
+        )?;
+        let range_start_specification = c.optional::<ReadJournalRequestRangeStartSpecification>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+        )?;
+        let range_stop_specification = c.optional::<ReadJournalRequestRangeStopSpecification>(
+            Some(Tag::new(TagClass::Context, 2, Tagging::Explicit)),
+        )?;
+        let list_of_variables = c.optional::<asn::ListOf<asn::Visible>>(Some(Tag::new(
+            TagClass::Context,
+            4,
+            Tagging::Implicit,
+        )))?;
+        let entry_to_start_after = c.optional::<ReadJournalRequestEntryToStartAfter>(Some(
+            Tag::new(TagClass::Context, 5, Tagging::Implicit),
+        ))?;
+        c.finish()?;
+        Ok(Self {
+            journal_name,
+            range_start_specification,
+            range_stop_specification,
+            list_of_variables,
+            entry_to_start_after,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<ObjectName>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+                &self.journal_name,
+                w,
+            )?;
+            asn::encode_optional::<ReadJournalRequestRangeStartSpecification>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Explicit)),
+                &self.range_start_specification,
+                w,
+            )?;
+            asn::encode_optional::<ReadJournalRequestRangeStopSpecification>(
+                Some(Tag::new(TagClass::Context, 2, Tagging::Explicit)),
+                &self.range_stop_specification,
+                w,
+            )?;
+            asn::encode_optional::<asn::ListOf<asn::Visible>>(
+                Some(Tag::new(TagClass::Context, 4, Tagging::Implicit)),
+                &self.list_of_variables,
+                w,
+            )?;
+            asn::encode_optional::<ReadJournalRequestEntryToStartAfter>(
+                Some(Tag::new(TagClass::Context, 5, Tagging::Implicit)),
+                &self.entry_to_start_after,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for ReadJournalRequest {
+    type Value = Self;
+    const NAME: &'static str = "ReadJournal-Request";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadJournalRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<ObjectName>(depth),
+            proptest::option::of(crate::strategy::values::<
+                ReadJournalRequestRangeStartSpecification,
+            >(depth)),
+            proptest::option::of(crate::strategy::values::<
+                ReadJournalRequestRangeStopSpecification,
+            >(depth)),
+            proptest::option::of(crate::strategy::values::<asn::ListOf<asn::Visible>>(depth)),
+            proptest::option::of(
+                crate::strategy::values::<ReadJournalRequestEntryToStartAfter>(depth),
+            ),
+        ),)
+            .prop_map(
+                |((
+                    journal_name,
+                    range_start_specification,
+                    range_stop_specification,
+                    list_of_variables,
+                    entry_to_start_after,
+                ),)| Self {
+                    journal_name,
+                    range_start_specification,
+                    range_stop_specification,
+                    list_of_variables,
+                    entry_to_start_after,
+                },
+            )
+            .boxed()
+    }
+}
+
+impl ReadJournalRequest {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        self.journal_name.walk_strings(f)?;
+        Ok(())
+    }
+}
+
+/// ASN.1 type `ReadJournalRequestEntryToStartAfter`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadJournalRequestEntryToStartAfter {
+    /// Component `timeSpecification`.
+    pub time_specification: TimeOfDay,
+    /// Component `entrySpecification`.
+    pub entry_specification: Vec<u8>,
+}
+
+impl ReadJournalRequestEntryToStartAfter {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "timeSpecification",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "entrySpecification",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl ReadJournalRequestEntryToStartAfter {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "ReadJournalRequestEntryToStartAfter", None)?;
+        let time_specification = c.required::<TimeOfDay>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "timeSpecification",
+        )?;
+        let entry_specification = c.required::<asn::Octets>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            "entrySpecification",
+        )?;
+        c.finish()?;
+        Ok(Self {
+            time_specification,
+            entry_specification,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<TimeOfDay>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.time_specification,
+                w,
+            )?;
+            asn::encode::<asn::Octets>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.entry_specification,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for ReadJournalRequestEntryToStartAfter {
+    type Value = Self;
+    const NAME: &'static str = "ReadJournalRequestEntryToStartAfter";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadJournalRequestEntryToStartAfter {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<TimeOfDay>(depth),
+            crate::strategy::values::<asn::Octets>(depth),
+        ),)
+            .prop_map(|((time_specification, entry_specification),)| Self {
+                time_specification,
+                entry_specification,
+            })
+            .boxed()
+    }
+}
+
+/// ASN.1 type `ReadJournalRequestRangeStartSpecification`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReadJournalRequestRangeStartSpecification {
+    /// Alternative `startingTime`.
+    StartingTime(TimeOfDay),
+    /// Alternative `startingEntry`.
+    StartingEntry(Vec<u8>),
+}
+
+impl ReadJournalRequestRangeStartSpecification {
+    /// Components with their tags.
+    pub const ALTERNATIVES: &'static [Member] = &[
+        Member {
+            name: "startingTime",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "startingEntry",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl ReadJournalRequestRangeStartSpecification {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::accepts::<TimeOfDay>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)), id)
+            || asn::accepts::<asn::Octets>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                id,
+            )
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let id = e.identifier;
+        if asn::accepts::<TimeOfDay>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)), id) {
+            return Ok(Self::StartingTime(asn::decode::<TimeOfDay>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<asn::Octets>(Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)), id)
+        {
+            return Ok(Self::StartingEntry(asn::decode::<asn::Octets>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        Err(asn::Error::NoAlternative {
+            ty: "ReadJournalRequestRangeStartSpecification",
+            found: id,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        asn::no_implicit(implicit, "ReadJournalRequestRangeStartSpecification")?;
+        match self {
+            Self::StartingTime(v) => asn::encode::<TimeOfDay>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::StartingEntry(v) => asn::encode::<asn::Octets>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                v,
+                w,
+            ),
+        }
+    }
+}
+
+impl asn::Codec for ReadJournalRequestRangeStartSpecification {
+    type Value = Self;
+    const NAME: &'static str = "ReadJournalRequestRangeStartSpecification";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadJournalRequestRangeStartSpecification {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<TimeOfDay>(depth)
+                .prop_map(Self::StartingTime)
+                .boxed(),
+            crate::strategy::values::<asn::Octets>(depth)
+                .prop_map(Self::StartingEntry)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+/// ASN.1 type `ReadJournalRequestRangeStopSpecification`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReadJournalRequestRangeStopSpecification {
+    /// Alternative `endingTime`.
+    EndingTime(TimeOfDay),
+    /// Alternative `numberOfEntries`.
+    NumberOfEntries(Integer32),
+}
+
+impl ReadJournalRequestRangeStopSpecification {
+    /// Components with their tags.
+    pub const ALTERNATIVES: &'static [Member] = &[
+        Member {
+            name: "endingTime",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "numberOfEntries",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl ReadJournalRequestRangeStopSpecification {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::accepts::<TimeOfDay>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)), id)
+            || asn::accepts::<Integer32>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                id,
+            )
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let id = e.identifier;
+        if asn::accepts::<TimeOfDay>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)), id) {
+            return Ok(Self::EndingTime(asn::decode::<TimeOfDay>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<Integer32>(Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)), id) {
+            return Ok(Self::NumberOfEntries(asn::decode::<Integer32>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        Err(asn::Error::NoAlternative {
+            ty: "ReadJournalRequestRangeStopSpecification",
+            found: id,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        asn::no_implicit(implicit, "ReadJournalRequestRangeStopSpecification")?;
+        match self {
+            Self::EndingTime(v) => asn::encode::<TimeOfDay>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::NumberOfEntries(v) => asn::encode::<Integer32>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                v,
+                w,
+            ),
+        }
+    }
+}
+
+impl asn::Codec for ReadJournalRequestRangeStopSpecification {
+    type Value = Self;
+    const NAME: &'static str = "ReadJournalRequestRangeStopSpecification";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadJournalRequestRangeStopSpecification {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        #[allow(unused_mut)]
+        let mut arms = vec![
+            crate::strategy::values::<TimeOfDay>(depth)
+                .prop_map(Self::EndingTime)
+                .boxed(),
+            crate::strategy::values::<Integer32>(depth)
+                .prop_map(Self::NumberOfEntries)
+                .boxed(),
+        ];
+        proptest::strategy::Union::new(arms).boxed()
+    }
+}
+
+/// ASN.1 type `ReadJournal-Response`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadJournalResponse {
+    /// Component `listOfJournalEntry`.
+    pub list_of_journal_entry: Vec<JournalEntry>,
+    /// Component `moreFollows`.
+    pub more_follows: Option<bool>,
+}
+
+impl ReadJournalResponse {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "listOfJournalEntry",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "moreFollows",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Default("FALSE"),
+        },
+    ];
+}
+
+impl ReadJournalResponse {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "ReadJournal-Response", None)?;
+        let list_of_journal_entry = c.required::<asn::ListOf<JournalEntry>>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "listOfJournalEntry",
+        )?;
+        let more_follows =
+            c.optional::<asn::Boolean>(Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)))?;
+        c.finish()?;
+        Ok(Self {
+            list_of_journal_entry,
+            more_follows,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<asn::ListOf<JournalEntry>>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.list_of_journal_entry,
+                w,
+            )?;
+            asn::encode_optional::<asn::Boolean>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.more_follows,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for ReadJournalResponse {
+    type Value = Self;
+    const NAME: &'static str = "ReadJournal-Response";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for ReadJournalResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::ListOf<JournalEntry>>(depth),
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+        ),)
+            .prop_map(|((list_of_journal_entry, more_follows),)| Self {
+                list_of_journal_entry,
+                more_follows,
+            })
+            .boxed()
+    }
+}
+
+impl ReadJournalResponse {
+    /// Calls `f` on every identifier and `Data` MMS string of the value, in encoding order.
+    pub fn walk_strings<E>(
+        &self,
+        f: &mut impl FnMut(crate::mms::Walked<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for item in &self.list_of_journal_entry {
+            item.walk_strings(f)?;
+        }
+        Ok(())
     }
 }
 

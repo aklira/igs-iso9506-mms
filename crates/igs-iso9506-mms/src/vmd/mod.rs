@@ -15,8 +15,11 @@
 //! references are refused: the list is in `docs/capabilities.md`.
 
 mod conform;
+mod journal;
 mod name;
 mod variable;
+
+pub use journal::Journal;
 
 use std::collections::BTreeMap;
 
@@ -123,11 +126,12 @@ impl From<NameError> for Error {
 /// A named variable list: the references of its members, in order (ISO 9506-2 §14.12).
 type List = Vec<Target>;
 
-/// A domain: its named variables and its named variable lists.
+/// A domain: its named variables, its named variable lists, and its journals.
 #[derive(Default)]
 struct Domain {
     variables: BTreeMap<Name, Box<dyn Variable>>,
     lists: BTreeMap<Name, List>,
+    journals: BTreeMap<Name, Journal>,
 }
 
 /// The model of a VMD.
@@ -232,6 +236,47 @@ impl Vmd {
         self.lists_mut(&name.scope())?
             .insert(name.item.clone(), members);
         Ok(())
+    }
+
+    /// Defines a journal of a domain, which keeps at most `capacity` entries (ISO 9506-2 clause 23). The journal is domain-specific:
+    /// the name must have a domain, which must exist, and the name must be free in it.
+    pub fn define_journal(&mut self, name: &Target, capacity: usize) -> Result<(), Error> {
+        let domain = name.domain.clone().ok_or(Error::Unsupported)?;
+        let domain = self.domains.get_mut(&domain).ok_or(Error::NonExistent)?;
+        if domain.journals.contains_key(&name.item) {
+            return Err(Error::Exists);
+        }
+        domain
+            .journals
+            .insert(name.item.clone(), Journal::new(capacity));
+        Ok(())
+    }
+
+    /// Enters an entry into a journal of a domain (the application's side of ISO 9506-2 clause 23).
+    pub fn append_journal(
+        &mut self,
+        name: &Target,
+        entry: igs_iso9506_mms_codec::generated::types::JournalEntry,
+    ) -> Result<(), Error> {
+        self.journal_mut(name)?.append(entry);
+        Ok(())
+    }
+
+    /// The journal of this name.
+    pub fn journal(&self, name: &Target) -> Result<&Journal, Error> {
+        let domain = name.domain.as_ref().ok_or(Error::Unsupported)?;
+        self.domains
+            .get(domain)
+            .and_then(|domain| domain.journals.get(&name.item))
+            .ok_or(Error::NonExistent)
+    }
+
+    fn journal_mut(&mut self, name: &Target) -> Result<&mut Journal, Error> {
+        let domain = name.domain.as_ref().ok_or(Error::Unsupported)?;
+        self.domains
+            .get_mut(domain)
+            .and_then(|domain| domain.journals.get_mut(&name.item))
+            .ok_or(Error::NonExistent)
     }
 
     /// DeleteNamedVariableList for one list (ISO 9506-2 §14.13). The caller counts the matched and the

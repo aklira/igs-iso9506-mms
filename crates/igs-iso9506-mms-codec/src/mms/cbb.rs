@@ -96,6 +96,23 @@ impl Negotiated {
         }
     }
 
+    /// Whether the service of this name is negotiated (its bit of the service support options).
+    fn service(&self, name: &str) -> bool {
+        SERVICES
+            .iter()
+            .find(|service| service.name == name)
+            .and_then(|service| usize::try_from(service.bit.position).ok())
+            .is_some_and(|position| self.services.bit(position))
+    }
+
+    fn need_service(&self, name: &'static str) -> Result<(), CbbError> {
+        if self.service(name) {
+            Ok(())
+        } else {
+            Err(CbbError::NotNegotiated { cbb: name })
+        }
+    }
+
     fn need_any(&self, cbbs: &[&'static str]) -> Result<(), CbbError> {
         match cbbs.iter().find(|c| self.parameter(c)) {
             Some(_) => Ok(()),
@@ -289,6 +306,7 @@ fn check_request(n: &Negotiated, service: &ConfirmedServiceRequest) -> Result<()
                 alternate(n, item.alternate_access.as_ref())
             })
         }
+        ConfirmedServiceRequest::ReadJournal(_) => n.need_service("readJournal"),
         ConfirmedServiceRequest::Identify(_)
         | ConfirmedServiceRequest::GetNamedVariableListAttributes(_)
         | ConfirmedServiceRequest::DeleteNamedVariableList(_)
@@ -320,6 +338,7 @@ fn check_response(n: &Negotiated, service: &ConfirmedServiceResponse) -> Result<
             type_description(n, &response.type_description)?;
             nesting(n, type_depth_of(&response.type_description))
         }
+        ConfirmedServiceResponse::ReadJournal(_) => n.need_service("readJournal"),
         ConfirmedServiceResponse::GetNamedVariableListAttributes(response) => {
             if response.access_control_list.is_some() {
                 n.need("aco")?;

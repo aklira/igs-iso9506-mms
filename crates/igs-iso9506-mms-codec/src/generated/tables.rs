@@ -994,7 +994,7 @@ pub const SERVICES: &[Service] = &[
             position: 65,
         },
         requires: &[],
-        in_scope: false,
+        in_scope: true,
         client: "x",
         server: "x",
     },

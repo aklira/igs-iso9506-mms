@@ -287,7 +287,11 @@ impl<'a> Generator<'a> {
             conformance
                 .mms_services
                 .iter()
-                .filter(|s| s.scope == "required" && s.family.as_deref() == Some(family))
+                .filter(|s| {
+                    // `iec61850`: a service that the IEC 61850 profile requires and TASE.2 does not (ReadJournal, see main).
+                    (s.scope == "required" || s.scope == "iec61850")
+                        && s.family.as_deref() == Some(family)
+                })
                 .filter_map(|s| s.tag)
                 .collect::<BTreeSet<u32>>()
         };
@@ -1567,7 +1571,13 @@ pub fn tables_txt(
             .mms_services
             .iter()
             .find(|c| c.tag == Some(s.tag) && c.family.as_deref() == Some(s.family.as_str()));
-        let in_scope = row.is_some_and(|r| r.scope == "required");
+        // A service that the IEC 61850 scope requires (ReadJournal, see main) is executed by this library, so it is in scope too; the
+        // TASE.2 row of the same service is listed first, so every row of the tag is looked at.
+        let in_scope = conformance.mms_services.iter().any(|r| {
+            r.tag == Some(s.tag)
+                && r.family.as_deref() == Some(s.family.as_str())
+                && (r.scope == "required" || r.scope == "iec61850")
+        });
         let (client, server) = row.map_or((String::new(), String::new()), |r| {
             (status(&r.client), status(&r.server))
         });

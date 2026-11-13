@@ -9,14 +9,15 @@ use igs_iso9506_mms_codec::generated::types::{
     AccessResult, ConfirmedServiceRequest, ConfirmedServiceResponse, DataAccessError,
     DefineNamedVariableListResponse, DeleteNamedVariableListRequest,
     DeleteNamedVariableListRequestScopeOfDelete, DeleteNamedVariableListResponse,
-    GetNameListRequest, GetNameListRequestObjectScope, GetNameListResponse,
+    EntryContentEntryForm, GetNameListRequest, GetNameListRequestObjectScope, GetNameListResponse,
     GetNamedVariableListAttributesRequest, GetNamedVariableListAttributesResponse,
     GetNamedVariableListAttributesResponseListOfVariableItem, GetVariableAccessAttributesRequest,
-    GetVariableAccessAttributesResponse, Identifier, IdentifyResponse, MMSString, ObjectClass,
-    ObjectClassBasicObjectClass, ObjectName, ReadRequest, ReadResponse, ServiceError,
-    ServiceErrorErrorClass, ServiceErrorErrorClassDefinition, Unsigned32,
-    VariableAccessSpecification, VariableSpecification, WriteRequest, WriteResponse,
-    WriteResponseItemItem,
+    GetVariableAccessAttributesResponse, Identifier, IdentifyResponse, JournalEntry, MMSString,
+    ObjectClass, ObjectClassBasicObjectClass, ObjectName, ReadJournalRequest,
+    ReadJournalRequestRangeStartSpecification, ReadJournalRequestRangeStopSpecification,
+    ReadJournalResponse, ReadRequest, ReadResponse, ServiceError, ServiceErrorErrorClass,
+    ServiceErrorErrorClassDefinition, TimeOfDay, Unsigned32, VariableAccessSpecification,
+    VariableSpecification, WriteRequest, WriteResponse, WriteResponseItemItem,
 };
 
 use crate::vmd::{Class, Error as ModelError, Name, Scope, Target, Vmd};
@@ -59,6 +60,9 @@ pub(crate) fn dispatch(
         ConfirmedServiceRequest::DeleteNamedVariableList(request) => {
             delete_named_variable_list(vmd, &request)
                 .map(ConfirmedServiceResponse::DeleteNamedVariableList)
+        }
+        ConfirmedServiceRequest::ReadJournal(request) => {
+            read_journal(vmd, &request).map(ConfirmedServiceResponse::ReadJournal)
         }
         // Not served: the negotiation refuses such a request before it reaches here.
         _ => Err(unsupported_service()),
@@ -348,6 +352,111 @@ fn delete_named_variable_list(
     Ok(DeleteNamedVariableListResponse {
         number_matched: Unsigned32(matched),
         number_deleted: Unsigned32(matched),
+    })
+}
+
+/// The time of day as a number that orders the times of different days: the day since 1 January 1984 and the milliseconds of the
+/// day. `None` for a time that is not a time of day.
+fn time_key(time: &TimeOfDay) -> Option<u64> {
+    let day = time.day().ok()?.unwrap_or(0);
+    let milliseconds = time.milliseconds().ok()?;
+    Some(
+        u64::from(day)
+            .saturating_mul(86_400_000)
+            .saturating_add(u64::from(milliseconds)),
+    )
+}
+
+/// The time of an entry, as its key (see [`time_key`]).
+fn entry_time(entry: &JournalEntry) -> Option<u64> {
+    time_key(&entry.entry_content.occurrence_time)
+}
+
+/// The tags of the variables of an entry, when it has data.
+fn variable_tags(entry: &JournalEntry) -> Vec<&str> {
+    match &entry.entry_content.entry_form {
+        EntryContentEntryForm::Data(data) => data
+            .list_of_variables
+            .iter()
+            .flatten()
+            .map(|variable| variable.variable_tag.0.as_str())
+            .collect(),
+        EntryContentEntryForm::Annotation(_) => Vec::new(),
+    }
+}
+
+/// ReadJournal (ISO 9506-2 clause 23.2; ISO 9506-1 clause 23.2): the entries of a domain's journal that the filters select, in
+/// the order they were entered, or the reverse when the number of entries is negative. The range start is a time (from it,
+/// included) or the identifier of an entry (from it, included); the range stop is a time (up to it, included); the list of
+/// variables keeps the entries that hold one of its tags; the entry to start after is skipped, or, when it is not held, the
+/// entries from its time are kept. `more follows` tells that entries were left out by the number of entries.
+fn read_journal(
+    vmd: &Vmd,
+    request: &ReadJournalRequest,
+) -> Result<ReadJournalResponse, ServiceError> {
+    let journal_name = target(vmd.identifier_limit(), &request.journal_name).map_err(service)?;
+    if journal_name.domain.is_none() {
+        // Journals are held in domains; the VMD and the application association scopes hold none.
+        return Err(unsupported_service());
+    }
+    let journal = vmd.journal(&journal_name).map_err(service)?;
+    let mut selected: Vec<&JournalEntry> = journal.entries().collect();
+    match &request.range_start_specification {
+        None => {}
+        Some(ReadJournalRequestRangeStartSpecification::StartingTime(from)) => {
+            let from = time_key(from).ok_or_else(inconsistent)?;
+            selected.retain(|entry| entry_time(entry).is_some_and(|time| time >= from));
+        }
+        Some(ReadJournalRequestRangeStartSpecification::StartingEntry(identifier)) => {
+            // An identifier that is not held selects nothing.
+            let start = selected
+                .iter()
+                .position(|entry| entry.entry_identifier == *identifier)
+                .unwrap_or(selected.len());
+            selected = selected.split_off(start);
+        }
+    }
+    if let Some(ReadJournalRequestRangeStopSpecification::EndingTime(to)) =
+        &request.range_stop_specification
+    {
+        let to = time_key(to).ok_or_else(inconsistent)?;
+        selected.retain(|entry| entry_time(entry).is_some_and(|time| time <= to));
+    }
+    if let Some(tags) = &request.list_of_variables {
+        selected.retain(|entry| {
+            variable_tags(entry)
+                .iter()
+                .any(|tag| tags.iter().any(|wanted| wanted == tag))
+        });
+    }
+    if let Some(after) = &request.entry_to_start_after {
+        match selected
+            .iter()
+            .position(|entry| entry.entry_identifier == after.entry_specification)
+        {
+            Some(index) => selected = selected.split_off(index.saturating_add(1)),
+            None => {
+                let from = time_key(&after.time_specification).ok_or_else(inconsistent)?;
+                selected.retain(|entry| entry_time(entry).is_some_and(|time| time >= from));
+            }
+        }
+    }
+    let (chosen, more): (Vec<&JournalEntry>, bool) = match &request.range_stop_specification {
+        Some(ReadJournalRequestRangeStopSpecification::NumberOfEntries(count)) => {
+            let wanted = usize::try_from(count.0.unsigned_abs()).unwrap_or(usize::MAX);
+            let more = selected.len() > wanted;
+            let chosen = if count.0 >= 0 {
+                selected.into_iter().take(wanted).collect()
+            } else {
+                selected.into_iter().rev().take(wanted).collect()
+            };
+            (chosen, more)
+        }
+        _ => (selected, false),
+    };
+    Ok(ReadJournalResponse {
+        list_of_journal_entry: chosen.into_iter().cloned().collect(),
+        more_follows: Some(more),
     })
 }
 

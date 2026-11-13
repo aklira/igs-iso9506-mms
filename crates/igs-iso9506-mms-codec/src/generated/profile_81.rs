@@ -525,7 +525,7 @@ pub static SERVICE_RULES: &[Rule] = &[
         name: "readJournal",
         position: 65,
         client: Requirement::Never,
-        server: Requirement::Unmodelled,
+        server: Requirement::Any(&[Feature::Logs]),
     },
     Rule {
         name: "writeJournal",

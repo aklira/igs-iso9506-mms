@@ -103,10 +103,21 @@ fn run(check: bool) -> Result<(), Fail> {
     let root = workspace_root()?;
     let profile: Profile =
         serde_saphyr::from_str(&read(&root.join("docs/spec/9506-2/data/profile_mms.yaml"))?)?;
-    let conformance: Conformance = serde_saphyr::from_str(&read(
+    let mut conformance: Conformance = serde_saphyr::from_str(&read(
         &root.join("docs/spec/6-702/data/conformance_702.yaml"),
     )?)?;
     validate(&profile, &conformance)?;
+    // ReadJournal is required by the IEC 61850 profile once the log services are declared (8-1 table 128, condition c13 of
+    // readJournal: "Shall be 'm' if support for the ACSI QueryLogByTime or QueryLogAfter is declared"). TASE.2 does not require it, so
+    // it is added with its own scope: its types are generated, and the TASE.2 tables are unchanged.
+    conformance.mms_services.push(data::ProfileService {
+        name: "ReadJournal".to_string(),
+        scope: "iec61850".to_string(),
+        tag: Some(65),
+        family: Some("confirmed".to_string()),
+        client: data::Status::default(),
+        server: data::Status::default(),
+    });
     let profile81: profile81::Conformance81 =
         serde_saphyr::from_str(&read(&root.join("docs/spec/8-1/data/conformance_81.yaml"))?)?;
 

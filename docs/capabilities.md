@@ -52,7 +52,7 @@ Each gap is described in the section that found it; this index gives its status.
 | G11 | Open: a data tag of a later edition, kept raw | Gaps; T3 |
 | G12 | Open: the peer refuses a domain-scope named variable list | S4 matrix; Client matrix |
 | G13 | Fixed (D-027): the peer proposes application context 1.0.9506.2.3, now accepted | S3 |
-| G14 | Open: the server does not hold journals; the reference client's domain listing ends with error 82 | S3; S4 |
+| G14 | Partly closed: ReadJournal is served from the journals of a domain (D-048). Open: the journal class of GetNameList, which the reference client's domain listing asks for (error 82), and the runtime entries of the application | S3; S4; N7 |
 | G15 | Open: the device sends no report; no reporting control block | S4 |
 | G16 | Open: the security events of IEC 62351-3 Annex A are not raised | X1 |
 | G17 | Open: rustls lacks two mandatory TLS 1.2 suites and the CCM suite of TLS 1.3 | X1 |

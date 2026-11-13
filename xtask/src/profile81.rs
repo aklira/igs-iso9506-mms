@@ -142,5 +142,8 @@ fn features(text: &str) -> Vec<&'static str> {
     if lower.contains("array") {
         out.push("Arrays");
     }
+    if lower.contains("querylog") {
+        out.push("Logs");
+    }
     out
 }

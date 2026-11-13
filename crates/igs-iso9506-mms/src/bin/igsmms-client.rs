@@ -74,6 +74,10 @@ struct Cli {
     #[arg(long, global = true)]
     arrays: bool,
 
+    /// For the IEC 61850 profile: log services are declared (QueryLogByTime, QueryLogAfter), so ReadJournal is required.
+    #[arg(long, global = true)]
+    logs: bool,
+
     /// Seconds to wait for each answer before a request times out.
     #[arg(long, global = true, value_name = "SECONDS", default_value_t = 30)]
     timeout: u64,
@@ -362,6 +366,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             logical_nodes: cli.logical_nodes,
             data_sets: cli.data_sets,
             arrays: cli.arrays,
+            logs: cli.logs,
         }),
     };
     let config = ClientConfig {

@@ -96,6 +96,7 @@ fn every_declared_feature_adds_its_cbbs() {
         logical_nodes: true,
         data_sets: true,
         arrays: true,
+        logs: false,
     });
     // str1 and valt follow the data sets (client) and the arrays (server); vlis follows the data sets
     // of the server (Table 128, c2 and c3).

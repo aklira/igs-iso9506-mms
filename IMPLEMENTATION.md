@@ -376,6 +376,9 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 - **N4 — Alternate access towards the model.**
 - **N5 — Observable outbound delivery**, then the 2.0.0 release prepared locally.
 - **N6 — The identifier limit of the VMD follows its profile** (D-037), for the flattened names of the IEC 61850 model (A3).
+- **N7 — Journals: ReadJournal for the log services** (D-048), for the logs of the IEC 61850 model (Q5 of igs-iec61850-mms). Needs
+  the codec types of ReadJournal (generated from their ASN.1 under the IEC 61850 scope), the journals of a domain in the VMD, the
+  server handler with the selection of 9506-1 table 127, and the client call. Done when the tests of `tests/journal.rs` pass.
 
 ---
 
@@ -435,6 +438,7 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 | N4 Alternate access towards the model | [ ] |
 | N5 Observable outbound delivery | [x] |
 | N6 VMD identifier limit by profile | [x] |
+| N7 Journals: ReadJournal for the log services (D-048) | [x] local, not pushed |
 
 Suggested order: P1–P4, F1, F2, F3, F4, F5, C1–C8, L1–L3, T1, L4, L5, L6, T2–T4, S1–S4, X1–X3, C9
 (in the background from C8 on), R1.

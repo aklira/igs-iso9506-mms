@@ -24,6 +24,8 @@ pub enum Feature {
     DataSets,
     /// A data object with an array implemented (7-2 clause 11, arrays).
     Arrays,
+    /// Log services declared: QueryLogByTime or QueryLogAfter (7-2 clause 17.3), which require ReadJournal (8-1 17.3.4).
+    Logs,
 }
 
 /// What a rule requires of one side.
@@ -58,6 +60,8 @@ pub struct Model {
     pub data_sets: bool,
     /// Arrays implemented in a data object.
     pub arrays: bool,
+    /// Log services declared (QueryLogByTime or QueryLogAfter), which require ReadJournal (8-1 table 128, c13).
+    pub logs: bool,
 }
 
 impl Model {
@@ -66,6 +70,7 @@ impl Model {
             Feature::LogicalNodes => self.logical_nodes,
             Feature::DataSets => self.data_sets,
             Feature::Arrays => self.arrays,
+            Feature::Logs => self.logs,
         }
     }
 
