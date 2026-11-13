@@ -4,7 +4,7 @@
 
 [package]
 name = "igs-iso9506-mms-codec"
-version = "1.1.0"
+version = "1.2.0"
 readme = "README.md"
 description = "BER and the encoding of TPKT, COTP, session, presentation, ACSE and MMS PDUs: no I/O."
 edition.workspace = true
