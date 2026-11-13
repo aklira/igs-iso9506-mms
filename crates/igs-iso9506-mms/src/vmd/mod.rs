@@ -15,10 +15,12 @@
 //! references are refused: the list is in `docs/capabilities.md`.
 
 mod conform;
+mod file;
 mod journal;
 mod name;
 mod variable;
 
+pub use file::{FileError, FileStore, StoredFile};
 pub use journal::Journal;
 
 use std::collections::BTreeMap;
@@ -141,6 +143,7 @@ pub struct Vmd {
     variables: BTreeMap<Name, Box<dyn Variable>>,
     lists: BTreeMap<Name, List>,
     domains: BTreeMap<Name, Domain>,
+    files: FileStore,
 }
 
 impl std::fmt::Debug for Vmd {
@@ -164,6 +167,7 @@ impl Vmd {
             variables: BTreeMap::new(),
             lists: BTreeMap::new(),
             domains: BTreeMap::new(),
+            files: FileStore::default(),
         }
     }
 
@@ -236,6 +240,25 @@ impl Vmd {
         self.lists_mut(&name.scope())?
             .insert(name.item.clone(), members);
         Ok(())
+    }
+
+    /// Adds a file to the virtual file store of the VMD, at this path of directory names and a file name. An existing file is replaced.
+    pub fn add_file(&mut self, path: &[&str], content: Vec<u8>, last_modified: Option<&str>) {
+        self.files.add(
+            path.iter().map(|part| (*part).to_string()).collect(),
+            content,
+            last_modified.map(str::to_string),
+        );
+    }
+
+    /// The virtual file store of the VMD.
+    pub fn files(&self) -> &FileStore {
+        &self.files
+    }
+
+    /// The virtual file store of the VMD, for the file services.
+    pub fn files_mut(&mut self) -> &mut FileStore {
+        &mut self.files
     }
 
     /// Defines a journal of a domain, which keeps at most `capacity` entries (ISO 9506-2 clause 23). The journal is domain-specific:

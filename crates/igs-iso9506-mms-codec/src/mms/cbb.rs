@@ -307,6 +307,11 @@ fn check_request(n: &Negotiated, service: &ConfirmedServiceRequest) -> Result<()
             })
         }
         ConfirmedServiceRequest::ReadJournal(_) => n.need_service("readJournal"),
+        ConfirmedServiceRequest::FileOpen(_) => n.need_service("fileOpen"),
+        ConfirmedServiceRequest::FileRead(_) => n.need_service("fileRead"),
+        ConfirmedServiceRequest::FileClose(_) => n.need_service("fileClose"),
+        ConfirmedServiceRequest::FileDelete(_) => n.need_service("fileDelete"),
+        ConfirmedServiceRequest::FileDirectory(_) => n.need_service("fileDirectory"),
         ConfirmedServiceRequest::Identify(_)
         | ConfirmedServiceRequest::GetNamedVariableListAttributes(_)
         | ConfirmedServiceRequest::DeleteNamedVariableList(_)
@@ -339,6 +344,11 @@ fn check_response(n: &Negotiated, service: &ConfirmedServiceResponse) -> Result<
             nesting(n, type_depth_of(&response.type_description))
         }
         ConfirmedServiceResponse::ReadJournal(_) => n.need_service("readJournal"),
+        ConfirmedServiceResponse::FileOpen(_) => n.need_service("fileOpen"),
+        ConfirmedServiceResponse::FileRead(_) => n.need_service("fileRead"),
+        ConfirmedServiceResponse::FileClose(_) => n.need_service("fileClose"),
+        ConfirmedServiceResponse::FileDelete(_) => n.need_service("fileDelete"),
+        ConfirmedServiceResponse::FileDirectory(_) => n.need_service("fileDirectory"),
         ConfirmedServiceResponse::GetNamedVariableListAttributes(response) => {
             if response.access_control_list.is_some() {
                 n.need("aco")?;

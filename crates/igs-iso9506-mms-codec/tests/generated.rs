@@ -67,8 +67,8 @@ fn scope_of_the_profile() {
         .filter(|s| s.in_scope)
         .map(|s| s.name)
         .collect();
-    // Nine services of TASE.2, and readJournal of the IEC 61850 log services (D-048).
-    assert_eq!(in_scope.len(), 10);
+    // Nine services of TASE.2, readJournal of the IEC 61850 log services (D-048), and the five file services (D-049).
+    assert_eq!(in_scope.len(), 15);
     assert!(in_scope.contains(&"read"));
     assert!(in_scope.contains(&"readJournal"));
     assert!(in_scope.contains(&"informationReport"));
@@ -106,15 +106,16 @@ fn requirements_keep_their_groups() {
 }
 
 /// The service CHOICE keeps the services in scope, and the others decode to `Unsupported`. ReadJournal (tag 65) is in the scope of the
-/// IEC 61850 log services (D-048); the other journal services stay out.
+/// IEC 61850 log services (D-048); the file services of GetFile, DeleteFile and GetFileAttributeValues are in it too (D-049); SetFile
+/// (ObtainFile, tag 46) and the other journal services stay out.
 #[test]
 fn service_choice_is_limited_to_the_scope() {
-    assert_eq!(ConfirmedServiceRequest::ALTERNATIVES.len(), 9);
+    assert_eq!(ConfirmedServiceRequest::ALTERNATIVES.len(), 14);
     let tags: Vec<u32> = ConfirmedServiceRequest::ALTERNATIVES
         .iter()
         .map(|m| m.tag.unwrap().number)
         .collect();
-    assert_eq!(tags, [1, 2, 4, 5, 6, 11, 12, 13, 65]);
+    assert_eq!(tags, [1, 2, 4, 5, 6, 11, 12, 13, 65, 72, 73, 74, 76, 77]);
 }
 
 #[test]
@@ -160,8 +161,8 @@ fn constraints_are_kept() {
 #[test]
 fn type_count_is_stable() {
     // 143 of ISO 9506 and ACSE, plus `UtcTime` and `DataMMSString` of the IEC 61850 union (D-032), plus the 14 types of
-    // ReadJournal and its entries (D-048).
-    assert_eq!(TYPE_COUNT, 159);
+    // ReadJournal and its entries (D-048), and the 13 types of the file services (D-049).
+    assert_eq!(TYPE_COUNT, 172);
 }
 
 /// Constraints without an extension marker are checked by `new`, on decoding and on encoding.

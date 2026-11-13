@@ -9,6 +9,9 @@ The next release is **2.0.0**: the public types change (decision D-032).
 
 ### Added
 
+- File services for the IEC 61850 file class (IEC 61850-8-1 clause 23): FileOpen, FileRead and FileClose for GetFile,
+  FileDirectory for GetFileAttributeValues, FileDelete for DeleteFile, on a virtual file store of the VMD; the client `get_file`.
+  SetFile (ObtainFile) is not served (D-049).
 - ReadJournal (ISO 9506-2 clause 23.2) for the IEC 61850 log services: the codec types, generated under the IEC 61850 scope; the
   journals of a domain in the VMD (bounded); the server answers the filters of table 127; the client call `read_journal` (D-048).
 - The codec reads the IEC 61850 union of the MMS types (IEC 61850-8-1 Annex F): `Data::UtcTime` and

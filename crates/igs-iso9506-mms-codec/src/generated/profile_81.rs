@@ -567,19 +567,19 @@ pub static SERVICE_RULES: &[Rule] = &[
         name: "fileOpen",
         position: 72,
         client: Requirement::Unmodelled,
-        server: Requirement::Unmodelled,
+        server: Requirement::Any(&[Feature::Files]),
     },
     Rule {
         name: "fileRead",
         position: 73,
         client: Requirement::Unmodelled,
-        server: Requirement::Unmodelled,
+        server: Requirement::Any(&[Feature::Files]),
     },
     Rule {
         name: "fileClose",
         position: 74,
         client: Requirement::Unmodelled,
-        server: Requirement::Unmodelled,
+        server: Requirement::Any(&[Feature::Files]),
     },
     Rule {
         name: "fileRename",
@@ -596,8 +596,8 @@ pub static SERVICE_RULES: &[Rule] = &[
     Rule {
         name: "fileDirectory",
         position: 77,
-        client: Requirement::Unmodelled,
-        server: Requirement::Unmodelled,
+        client: Requirement::Any(&[Feature::Files]),
+        server: Requirement::Any(&[Feature::Files]),
     },
     Rule {
         name: "unsolicitedStatus",

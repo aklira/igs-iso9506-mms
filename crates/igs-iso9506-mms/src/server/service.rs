@@ -8,19 +8,23 @@
 use igs_iso9506_mms_codec::generated::types::{
     AccessResult, ConfirmedServiceRequest, ConfirmedServiceResponse, DataAccessError,
     DefineNamedVariableListResponse, DeleteNamedVariableListRequest,
-    DeleteNamedVariableListRequestScopeOfDelete, DeleteNamedVariableListResponse,
-    EntryContentEntryForm, GetNameListRequest, GetNameListRequestObjectScope, GetNameListResponse,
-    GetNamedVariableListAttributesRequest, GetNamedVariableListAttributesResponse,
+    DeleteNamedVariableListRequestScopeOfDelete, DeleteNamedVariableListResponse, DirectoryEntry,
+    EntryContentEntryForm, FileAttributes, FileCloseRequest, FileCloseResponse, FileDeleteRequest,
+    FileDeleteResponse, FileDirectoryRequest, FileDirectoryResponse, FileName, FileOpenRequest,
+    FileOpenResponse, FileReadRequest, FileReadResponse, GetNameListRequest,
+    GetNameListRequestObjectScope, GetNameListResponse, GetNamedVariableListAttributesRequest,
+    GetNamedVariableListAttributesResponse,
     GetNamedVariableListAttributesResponseListOfVariableItem, GetVariableAccessAttributesRequest,
-    GetVariableAccessAttributesResponse, Identifier, IdentifyResponse, JournalEntry, MMSString,
-    ObjectClass, ObjectClassBasicObjectClass, ObjectName, ReadJournalRequest,
+    GetVariableAccessAttributesResponse, Identifier, IdentifyResponse, Integer32, JournalEntry,
+    MMSString, ObjectClass, ObjectClassBasicObjectClass, ObjectName, ReadJournalRequest,
     ReadJournalRequestRangeStartSpecification, ReadJournalRequestRangeStopSpecification,
     ReadJournalResponse, ReadRequest, ReadResponse, ServiceError, ServiceErrorErrorClass,
-    ServiceErrorErrorClassDefinition, TimeOfDay, Unsigned32, VariableAccessSpecification,
-    VariableSpecification, WriteRequest, WriteResponse, WriteResponseItemItem,
+    ServiceErrorErrorClassDefinition, ServiceErrorErrorClassFile, TimeOfDay, Unsigned32,
+    VariableAccessSpecification, VariableSpecification, WriteRequest, WriteResponse,
+    WriteResponseItemItem,
 };
 
-use crate::vmd::{Class, Error as ModelError, Name, Scope, Target, Vmd};
+use crate::vmd::{Class, Error as ModelError, FileError, Name, Scope, Target, Vmd};
 
 /// The most names of one GetNameList answer. A name takes at most 34 octets on the wire, so a page stays
 /// small whatever the negotiated size of the transport.
@@ -63,6 +67,21 @@ pub(crate) fn dispatch(
         }
         ConfirmedServiceRequest::ReadJournal(request) => {
             read_journal(vmd, &request).map(ConfirmedServiceResponse::ReadJournal)
+        }
+        ConfirmedServiceRequest::FileOpen(request) => {
+            file_open(vmd, &request).map(ConfirmedServiceResponse::FileOpen)
+        }
+        ConfirmedServiceRequest::FileRead(request) => {
+            file_read(vmd, &request).map(ConfirmedServiceResponse::FileRead)
+        }
+        ConfirmedServiceRequest::FileClose(request) => {
+            file_close(vmd, &request).map(ConfirmedServiceResponse::FileClose)
+        }
+        ConfirmedServiceRequest::FileDelete(request) => {
+            file_delete(vmd, &request).map(ConfirmedServiceResponse::FileDelete)
+        }
+        ConfirmedServiceRequest::FileDirectory(request) => {
+            file_directory(vmd, &request).map(ConfirmedServiceResponse::FileDirectory)
         }
         // Not served: the negotiation refuses such a request before it reaches here.
         _ => Err(unsupported_service()),
@@ -457,6 +476,111 @@ fn read_journal(
     Ok(ReadJournalResponse {
         list_of_journal_entry: chosen.into_iter().cloned().collect(),
         more_follows: Some(more),
+    })
+}
+
+/// The most octets that one FileRead answer carries (the size of an answer that the associations hold).
+const FILE_READ_OCTETS: usize = 2048;
+
+/// The MMS error of a file operation: the error class `file` (ISO 9506-2 clause 18; IEC 61850-8-1 table 116).
+fn file_error(error: FileError) -> ServiceError {
+    let code = match error {
+        FileError::NonExistent => ServiceErrorErrorClassFile::FILE_NON_EXISTENT,
+        FileError::PositionInvalid => ServiceErrorErrorClassFile::POSITION_INVALID,
+        FileError::Busy => ServiceErrorErrorClassFile::FILE_BUSY,
+    };
+    ServiceError {
+        error_class: ServiceErrorErrorClass::File(code),
+        additional_code: None,
+        additional_description: None,
+        service_specific_info: None,
+    }
+}
+
+/// The attributes of a stored file: its size, and its last modification.
+fn file_attributes(size: usize, last_modified: Option<&String>) -> FileAttributes {
+    FileAttributes {
+        size_of_file: Unsigned32(i64::try_from(size).unwrap_or(i64::MAX)),
+        last_modified: last_modified.cloned(),
+    }
+}
+
+/// FileOpen (ISO 9506-2 clause 18): starts a read of the file at its initial position, and gives the FRSM identifier and the file
+/// attributes.
+fn file_open(vmd: &mut Vmd, request: &FileOpenRequest) -> Result<FileOpenResponse, ServiceError> {
+    let name = &request.file_name.0;
+    let (size, last_modified) = {
+        let file = vmd
+            .files()
+            .file(name)
+            .ok_or_else(|| file_error(FileError::NonExistent))?;
+        (file.content.len(), file.last_modified.clone())
+    };
+    let position = u64::try_from(request.initial_position.0)
+        .map_err(|_| file_error(FileError::PositionInvalid))?;
+    let frsm = vmd.files_mut().open(name, position).map_err(file_error)?;
+    Ok(FileOpenResponse {
+        frsm_id: Integer32(frsm),
+        file_attributes: file_attributes(size, last_modified.as_ref()),
+    })
+}
+
+/// FileRead: the next part of the file that an FRSM reads, and whether more follows.
+fn file_read(vmd: &mut Vmd, request: &FileReadRequest) -> Result<FileReadResponse, ServiceError> {
+    let (data, more) = vmd
+        .files_mut()
+        .read(request.0 .0, FILE_READ_OCTETS)
+        .map_err(file_error)?;
+    Ok(FileReadResponse {
+        file_data: data,
+        more_follows: Some(more),
+    })
+}
+
+/// FileClose: ends the read of an FRSM.
+fn file_close(
+    vmd: &mut Vmd,
+    request: &FileCloseRequest,
+) -> Result<FileCloseResponse, ServiceError> {
+    vmd.files_mut().close(request.0 .0).map_err(file_error)?;
+    Ok(FileCloseResponse(()))
+}
+
+/// FileDelete: removes a file that no FRSM reads.
+fn file_delete(
+    vmd: &mut Vmd,
+    request: &FileDeleteRequest,
+) -> Result<FileDeleteResponse, ServiceError> {
+    vmd.files_mut().delete(&request.0 .0).map_err(file_error)?;
+    Ok(FileDeleteResponse(()))
+}
+
+/// FileDirectory (ISO 9506-2 clause 18): the files whose path starts with the file specification, after the entry named by
+/// `continueAfter`. The answer holds them all (`moreFollows` is false).
+fn file_directory(
+    vmd: &mut Vmd,
+    request: &FileDirectoryRequest,
+) -> Result<FileDirectoryResponse, ServiceError> {
+    let specification: &[String] = request
+        .file_specification
+        .as_ref()
+        .map_or(&[], |name| name.0.as_slice());
+    let after: Option<&[String]> = request
+        .continue_after
+        .as_ref()
+        .map(|name| name.0.as_slice());
+    let entries = vmd
+        .files()
+        .list(specification, after)
+        .into_iter()
+        .map(|(name, file)| DirectoryEntry {
+            file_name: FileName(name.clone()),
+            file_attributes: file_attributes(file.content.len(), file.last_modified.as_ref()),
+        })
+        .collect();
+    Ok(FileDirectoryResponse {
+        list_of_directory_entry: entries,
+        more_follows: Some(false),
     })
 }
 

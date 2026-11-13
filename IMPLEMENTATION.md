@@ -379,6 +379,9 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 - **N7 — Journals: ReadJournal for the log services** (D-048), for the logs of the IEC 61850 model (Q5 of igs-iec61850-mms). Needs
   the codec types of ReadJournal (generated from their ASN.1 under the IEC 61850 scope), the journals of a domain in the VMD, the
   server handler with the selection of 9506-1 table 127, and the client call. Done when the tests of `tests/journal.rs` pass.
+- **N8 — File services for the IEC 61850 file class** (D-049): FileOpen, FileRead, FileClose (GetFile), FileDirectory
+  (GetFileAttributeValues), FileDelete (DeleteFile) in the IEC 61850 scope, a virtual file store in the VMD, the client `get_file`.
+  SetFile (ObtainFile) is refused. Done when the tests of `tests/files.rs` pass.
 
 ---
 
@@ -439,6 +442,7 @@ rules of this plan; the ISO 9506 profile of TASE.2 keeps its behaviour and `igs-
 | N5 Observable outbound delivery | [x] |
 | N6 VMD identifier limit by profile | [x] |
 | N7 Journals: ReadJournal for the log services (D-048) | [x] local, not pushed |
+| N8 File services: GetFile, GetFileAttributeValues, DeleteFile (D-049) | [x] local, not pushed |
 
 Suggested order: P1–P4, F1, F2, F3, F4, F5, C1–C8, L1–L3, T1, L4, L5, L6, T2–T4, S1–S4, X1–X3, C9
 (in the background from C8 on), R1.

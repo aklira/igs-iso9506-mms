@@ -24,7 +24,7 @@ use crate::schema::{
 use proptest::strategy::Strategy as _;
 
 /// Number of generated types.
-pub const TYPE_COUNT: usize = 159;
+pub const TYPE_COUNT: usize = 172;
 
 /// ASN.1 type `AARE-apdu`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4945,6 +4945,16 @@ pub enum ConfirmedServiceRequest {
     DeleteNamedVariableList(DeleteNamedVariableListRequest),
     /// Alternative `readJournal`.
     ReadJournal(ReadJournalRequest),
+    /// Alternative `fileOpen`.
+    FileOpen(FileOpenRequest),
+    /// Alternative `fileRead`.
+    FileRead(FileReadRequest),
+    /// Alternative `fileClose`.
+    FileClose(FileCloseRequest),
+    /// Alternative `fileDelete`.
+    FileDelete(FileDeleteRequest),
+    /// Alternative `fileDirectory`.
+    FileDirectory(FileDirectoryRequest),
     /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
@@ -5002,6 +5012,31 @@ impl ConfirmedServiceRequest {
             tag: Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
             presence: Presence::Required,
         },
+        Member {
+            name: "fileOpen",
+            tag: Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileRead",
+            tag: Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileClose",
+            tag: Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileDelete",
+            tag: Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileDirectory",
+            tag: Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
     ];
 }
 
@@ -5033,6 +5068,21 @@ impl ConfirmedServiceRequest {
             id,
         ) || asn::accepts::<ReadJournalRequest>(
             Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileOpenRequest>(
+            Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileReadRequest>(
+            Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileCloseRequest>(
+            Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileDeleteRequest>(
+            Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileDirectoryRequest>(
+            Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
             id,
         ) || id.class == TagClass::Context
     }
@@ -5123,6 +5173,51 @@ impl ConfirmedServiceRequest {
                 e,
             )?));
         }
+        if asn::accepts::<FileOpenRequest>(
+            Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileOpen(asn::decode::<FileOpenRequest>(
+                Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileReadRequest>(
+            Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileRead(asn::decode::<FileReadRequest>(
+                Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileCloseRequest>(
+            Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileClose(asn::decode::<FileCloseRequest>(
+                Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileDeleteRequest>(
+            Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileDelete(asn::decode::<FileDeleteRequest>(
+                Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileDirectoryRequest>(
+            Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileDirectory(asn::decode::<FileDirectoryRequest>(
+                Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+                e,
+            )?));
+        }
         if id.class == TagClass::Context {
             return Ok(Self::Unsupported {
                 tag: id.number,
@@ -5190,6 +5285,31 @@ impl ConfirmedServiceRequest {
                 v,
                 w,
             ),
+            Self::FileOpen(v) => asn::encode::<FileOpenRequest>(
+                Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileRead(v) => asn::encode::<FileReadRequest>(
+                Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileClose(v) => asn::encode::<FileCloseRequest>(
+                Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileDelete(v) => asn::encode::<FileDeleteRequest>(
+                Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileDirectory(v) => asn::encode::<FileDirectoryRequest>(
+                Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+                v,
+                w,
+            ),
             Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
         }
     }
@@ -5205,6 +5325,11 @@ impl ConfirmedServiceRequest {
             Self::GetNamedVariableListAttributes(_) => 12,
             Self::DeleteNamedVariableList(_) => 13,
             Self::ReadJournal(_) => 65,
+            Self::FileOpen(_) => 72,
+            Self::FileRead(_) => 73,
+            Self::FileClose(_) => 74,
+            Self::FileDelete(_) => 76,
+            Self::FileDirectory(_) => 77,
             Self::Unsupported { tag, .. } => *tag,
         }
     }
@@ -5261,7 +5386,22 @@ impl crate::strategy::Values for ConfirmedServiceRequest {
             crate::strategy::values::<ReadJournalRequest>(depth)
                 .prop_map(Self::ReadJournal)
                 .boxed(),
-            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13, 65])
+            crate::strategy::values::<FileOpenRequest>(depth)
+                .prop_map(Self::FileOpen)
+                .boxed(),
+            crate::strategy::values::<FileReadRequest>(depth)
+                .prop_map(Self::FileRead)
+                .boxed(),
+            crate::strategy::values::<FileCloseRequest>(depth)
+                .prop_map(Self::FileClose)
+                .boxed(),
+            crate::strategy::values::<FileDeleteRequest>(depth)
+                .prop_map(Self::FileDelete)
+                .boxed(),
+            crate::strategy::values::<FileDirectoryRequest>(depth)
+                .prop_map(Self::FileDirectory)
+                .boxed(),
+            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13, 65, 72, 73, 74, 76, 77])
                 .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
                 .boxed(),
         ];
@@ -5328,6 +5468,16 @@ pub enum ConfirmedServiceResponse {
     DeleteNamedVariableList(DeleteNamedVariableListResponse),
     /// Alternative `readJournal`.
     ReadJournal(ReadJournalResponse),
+    /// Alternative `fileOpen`.
+    FileOpen(FileOpenResponse),
+    /// Alternative `fileRead`.
+    FileRead(FileReadResponse),
+    /// Alternative `fileClose`.
+    FileClose(FileCloseResponse),
+    /// Alternative `fileDelete`.
+    FileDelete(FileDeleteResponse),
+    /// Alternative `fileDirectory`.
+    FileDirectory(FileDirectoryResponse),
     /// An alternative out of scope or not defined here, kept as received.
     Unsupported {
         /// Tag number.
@@ -5385,6 +5535,31 @@ impl ConfirmedServiceResponse {
             tag: Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
             presence: Presence::Required,
         },
+        Member {
+            name: "fileOpen",
+            tag: Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileRead",
+            tag: Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileClose",
+            tag: Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileDelete",
+            tag: Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileDirectory",
+            tag: Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
     ];
 }
 
@@ -5416,6 +5591,21 @@ impl ConfirmedServiceResponse {
             id,
         ) || asn::accepts::<ReadJournalResponse>(
             Some(Tag::new(TagClass::Context, 65, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileOpenResponse>(
+            Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileReadResponse>(
+            Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileCloseResponse>(
+            Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileDeleteResponse>(
+            Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+            id,
+        ) || asn::accepts::<FileDirectoryResponse>(
+            Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
             id,
         ) || id.class == TagClass::Context
     }
@@ -5508,6 +5698,51 @@ impl ConfirmedServiceResponse {
                 e,
             )?));
         }
+        if asn::accepts::<FileOpenResponse>(
+            Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileOpen(asn::decode::<FileOpenResponse>(
+                Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileReadResponse>(
+            Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileRead(asn::decode::<FileReadResponse>(
+                Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileCloseResponse>(
+            Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileClose(asn::decode::<FileCloseResponse>(
+                Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileDeleteResponse>(
+            Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileDelete(asn::decode::<FileDeleteResponse>(
+                Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+                e,
+            )?));
+        }
+        if asn::accepts::<FileDirectoryResponse>(
+            Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+            id,
+        ) {
+            return Ok(Self::FileDirectory(asn::decode::<FileDirectoryResponse>(
+                Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+                e,
+            )?));
+        }
         if id.class == TagClass::Context {
             return Ok(Self::Unsupported {
                 tag: id.number,
@@ -5575,6 +5810,31 @@ impl ConfirmedServiceResponse {
                 v,
                 w,
             ),
+            Self::FileOpen(v) => asn::encode::<FileOpenResponse>(
+                Some(Tag::new(TagClass::Context, 72, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileRead(v) => asn::encode::<FileReadResponse>(
+                Some(Tag::new(TagClass::Context, 73, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileClose(v) => asn::encode::<FileCloseResponse>(
+                Some(Tag::new(TagClass::Context, 74, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileDelete(v) => asn::encode::<FileDeleteResponse>(
+                Some(Tag::new(TagClass::Context, 76, Tagging::Implicit)),
+                v,
+                w,
+            ),
+            Self::FileDirectory(v) => asn::encode::<FileDirectoryResponse>(
+                Some(Tag::new(TagClass::Context, 77, Tagging::Implicit)),
+                v,
+                w,
+            ),
             Self::Unsupported { tag, raw } => asn::write_unsupported(w, *tag, 0, raw),
         }
     }
@@ -5590,6 +5850,11 @@ impl ConfirmedServiceResponse {
             Self::GetNamedVariableListAttributes(_) => 12,
             Self::DeleteNamedVariableList(_) => 13,
             Self::ReadJournal(_) => 65,
+            Self::FileOpen(_) => 72,
+            Self::FileRead(_) => 73,
+            Self::FileClose(_) => 74,
+            Self::FileDelete(_) => 76,
+            Self::FileDirectory(_) => 77,
             Self::Unsupported { tag, .. } => *tag,
         }
     }
@@ -5646,7 +5911,22 @@ impl crate::strategy::Values for ConfirmedServiceResponse {
             crate::strategy::values::<ReadJournalResponse>(depth)
                 .prop_map(Self::ReadJournal)
                 .boxed(),
-            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13, 65])
+            crate::strategy::values::<FileOpenResponse>(depth)
+                .prop_map(Self::FileOpen)
+                .boxed(),
+            crate::strategy::values::<FileReadResponse>(depth)
+                .prop_map(Self::FileRead)
+                .boxed(),
+            crate::strategy::values::<FileCloseResponse>(depth)
+                .prop_map(Self::FileClose)
+                .boxed(),
+            crate::strategy::values::<FileDeleteResponse>(depth)
+                .prop_map(Self::FileDelete)
+                .boxed(),
+            crate::strategy::values::<FileDirectoryResponse>(depth)
+                .prop_map(Self::FileDirectory)
+                .boxed(),
+            crate::strategy::unsupported(0, &[1, 2, 4, 5, 6, 11, 12, 13, 65, 72, 73, 74, 76, 77])
                 .prop_map(|(tag, raw)| Self::Unsupported { tag, raw })
                 .boxed(),
         ];
@@ -6959,6 +7239,106 @@ impl crate::strategy::Values for DeleteNamedVariableListResponse {
     }
 }
 
+/// ASN.1 type `DirectoryEntry`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryEntry {
+    /// Component `fileName`.
+    pub file_name: FileName,
+    /// Component `fileAttributes`.
+    pub file_attributes: FileAttributes,
+}
+
+impl DirectoryEntry {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "fileName",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileAttributes",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl DirectoryEntry {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "DirectoryEntry", None)?;
+        let file_name = c.required::<FileName>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "fileName",
+        )?;
+        let file_attributes = c.required::<FileAttributes>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            "fileAttributes",
+        )?;
+        c.finish()?;
+        Ok(Self {
+            file_name,
+            file_attributes,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<FileName>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.file_name,
+                w,
+            )?;
+            asn::encode::<FileAttributes>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.file_attributes,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for DirectoryEntry {
+    type Value = Self;
+    const NAME: &'static str = "DirectoryEntry";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for DirectoryEntry {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<FileName>(depth),
+            crate::strategy::values::<FileAttributes>(depth),
+        ),)
+            .prop_map(|((file_name, file_attributes),)| Self {
+                file_name,
+                file_attributes,
+            })
+            .boxed()
+    }
+}
+
 /// ASN.1 type `EC-State`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ECState(pub i64);
@@ -7493,6 +7873,899 @@ impl EntryContentEntryFormDataEvent {
     ) -> Result<(), E> {
         self.event_condition_name.walk_strings(f)?;
         Ok(())
+    }
+}
+
+/// ASN.1 type `FileAttributes`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileAttributes {
+    /// Component `sizeOfFile`.
+    pub size_of_file: Unsigned32,
+    /// Component `lastModified`.
+    pub last_modified: Option<String>,
+}
+
+impl FileAttributes {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "sizeOfFile",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "lastModified",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+    ];
+}
+
+impl FileAttributes {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "FileAttributes", None)?;
+        let size_of_file = c.required::<Unsigned32>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "sizeOfFile",
+        )?;
+        let last_modified = c.optional::<asn::GeneralizedTime>(Some(Tag::new(
+            TagClass::Context,
+            1,
+            Tagging::Implicit,
+        )))?;
+        c.finish()?;
+        Ok(Self {
+            size_of_file,
+            last_modified,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<Unsigned32>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.size_of_file,
+                w,
+            )?;
+            asn::encode_optional::<asn::GeneralizedTime>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.last_modified,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for FileAttributes {
+    type Value = Self;
+    const NAME: &'static str = "FileAttributes";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileAttributes {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Unsigned32>(depth),
+            proptest::option::of(crate::strategy::values::<asn::GeneralizedTime>(depth)),
+        ),)
+            .prop_map(|((size_of_file, last_modified),)| Self {
+                size_of_file,
+                last_modified,
+            })
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileClose-Request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileCloseRequest(pub Integer32);
+
+impl FileCloseRequest {}
+
+impl FileCloseRequest {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <Integer32 as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<Integer32 as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <Integer32 as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for FileCloseRequest {
+    type Value = Self;
+    const NAME: &'static str = "FileClose-Request";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileCloseRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<Integer32>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileClose-Response`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileCloseResponse(pub ());
+
+impl FileCloseResponse {}
+
+impl FileCloseResponse {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::Null as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<asn::Null as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <asn::Null as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for FileCloseResponse {
+    type Value = Self;
+    const NAME: &'static str = "FileClose-Response";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileCloseResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Null>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileDelete-Request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDeleteRequest(pub FileName);
+
+impl FileDeleteRequest {}
+
+impl FileDeleteRequest {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <FileName as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<FileName as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <FileName as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for FileDeleteRequest {
+    type Value = Self;
+    const NAME: &'static str = "FileDelete-Request";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileDeleteRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<FileName>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileDelete-Response`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDeleteResponse(pub ());
+
+impl FileDeleteResponse {}
+
+impl FileDeleteResponse {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::Null as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<asn::Null as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <asn::Null as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for FileDeleteResponse {
+    type Value = Self;
+    const NAME: &'static str = "FileDelete-Response";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileDeleteResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::Null>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileDirectory-Request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDirectoryRequest {
+    /// Component `fileSpecification`.
+    pub file_specification: Option<FileName>,
+    /// Component `continueAfter`.
+    pub continue_after: Option<FileName>,
+}
+
+impl FileDirectoryRequest {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "fileSpecification",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+        Member {
+            name: "continueAfter",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Optional,
+        },
+    ];
+}
+
+impl FileDirectoryRequest {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "FileDirectory-Request", None)?;
+        let file_specification =
+            c.optional::<FileName>(Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)))?;
+        let continue_after =
+            c.optional::<FileName>(Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)))?;
+        c.finish()?;
+        Ok(Self {
+            file_specification,
+            continue_after,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode_optional::<FileName>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.file_specification,
+                w,
+            )?;
+            asn::encode_optional::<FileName>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.continue_after,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for FileDirectoryRequest {
+    type Value = Self;
+    const NAME: &'static str = "FileDirectory-Request";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileDirectoryRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            proptest::option::of(crate::strategy::values::<FileName>(depth)),
+            proptest::option::of(crate::strategy::values::<FileName>(depth)),
+        ),)
+            .prop_map(|((file_specification, continue_after),)| Self {
+                file_specification,
+                continue_after,
+            })
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileDirectory-Response`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDirectoryResponse {
+    /// Component `listOfDirectoryEntry`.
+    pub list_of_directory_entry: Vec<DirectoryEntry>,
+    /// Component `moreFollows`.
+    pub more_follows: Option<bool>,
+}
+
+impl FileDirectoryResponse {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "listOfDirectoryEntry",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "moreFollows",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Default("FALSE"),
+        },
+    ];
+}
+
+impl FileDirectoryResponse {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "FileDirectory-Response", None)?;
+        let list_of_directory_entry = c.required::<asn::ListOf<DirectoryEntry>>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+            "listOfDirectoryEntry",
+        )?;
+        let more_follows =
+            c.optional::<asn::Boolean>(Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)))?;
+        c.finish()?;
+        Ok(Self {
+            list_of_directory_entry,
+            more_follows,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<asn::ListOf<DirectoryEntry>>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Explicit)),
+                &self.list_of_directory_entry,
+                w,
+            )?;
+            asn::encode_optional::<asn::Boolean>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.more_follows,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for FileDirectoryResponse {
+    type Value = Self;
+    const NAME: &'static str = "FileDirectory-Response";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileDirectoryResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::ListOf<DirectoryEntry>>(depth),
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+        ),)
+            .prop_map(|((list_of_directory_entry, more_follows),)| Self {
+                list_of_directory_entry,
+                more_follows,
+            })
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileName`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileName(pub Vec<String>);
+
+impl FileName {}
+
+impl FileName {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <asn::ListOf<asn::Graphic> as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<asn::ListOf<asn::Graphic> as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <asn::ListOf<asn::Graphic> as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for FileName {
+    type Value = Self;
+    const NAME: &'static str = "FileName";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileName {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<asn::ListOf<asn::Graphic>>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileOpen-Request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileOpenRequest {
+    /// Component `fileName`.
+    pub file_name: FileName,
+    /// Component `initialPosition`.
+    pub initial_position: Unsigned32,
+}
+
+impl FileOpenRequest {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "fileName",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "initialPosition",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl FileOpenRequest {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "FileOpen-Request", None)?;
+        let file_name = c.required::<FileName>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "fileName",
+        )?;
+        let initial_position = c.required::<Unsigned32>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            "initialPosition",
+        )?;
+        c.finish()?;
+        Ok(Self {
+            file_name,
+            initial_position,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<FileName>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.file_name,
+                w,
+            )?;
+            asn::encode::<Unsigned32>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.initial_position,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for FileOpenRequest {
+    type Value = Self;
+    const NAME: &'static str = "FileOpen-Request";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileOpenRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<FileName>(depth),
+            crate::strategy::values::<Unsigned32>(depth),
+        ),)
+            .prop_map(|((file_name, initial_position),)| Self {
+                file_name,
+                initial_position,
+            })
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileOpen-Response`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileOpenResponse {
+    /// Component `frsmID`.
+    pub frsm_id: Integer32,
+    /// Component `fileAttributes`.
+    pub file_attributes: FileAttributes,
+}
+
+impl FileOpenResponse {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "frsmID",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "fileAttributes",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+    ];
+}
+
+impl FileOpenResponse {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "FileOpen-Response", None)?;
+        let frsm_id = c.required::<Integer32>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "frsmID",
+        )?;
+        let file_attributes = c.required::<FileAttributes>(
+            Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            "fileAttributes",
+        )?;
+        c.finish()?;
+        Ok(Self {
+            frsm_id,
+            file_attributes,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<Integer32>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.frsm_id,
+                w,
+            )?;
+            asn::encode::<FileAttributes>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.file_attributes,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for FileOpenResponse {
+    type Value = Self;
+    const NAME: &'static str = "FileOpen-Response";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileOpenResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<Integer32>(depth),
+            crate::strategy::values::<FileAttributes>(depth),
+        ),)
+            .prop_map(|((frsm_id, file_attributes),)| Self {
+                frsm_id,
+                file_attributes,
+            })
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileRead-Request`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileReadRequest(pub Integer32);
+
+impl FileReadRequest {}
+
+impl FileReadRequest {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        <Integer32 as asn::Codec>::accepts(id)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Ok(Self(<Integer32 as asn::Codec>::decode(e)?))
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        <Integer32 as asn::Codec>::encode(&self.0, w, implicit)
+    }
+}
+
+impl asn::Codec for FileReadRequest {
+    type Value = Self;
+    const NAME: &'static str = "FileRead-Request";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileReadRequest {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        crate::strategy::values::<Integer32>(depth)
+            .prop_map(Self)
+            .boxed()
+    }
+}
+
+/// ASN.1 type `FileRead-Response`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileReadResponse {
+    /// Component `fileData`.
+    pub file_data: Vec<u8>,
+    /// Component `moreFollows`.
+    pub more_follows: Option<bool>,
+}
+
+impl FileReadResponse {
+    /// Components with their tags.
+    pub const COMPONENTS: &'static [Member] = &[
+        Member {
+            name: "fileData",
+            tag: Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            presence: Presence::Required,
+        },
+        Member {
+            name: "moreFollows",
+            tag: Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+            presence: Presence::Default("TRUE"),
+        },
+    ];
+}
+
+impl FileReadResponse {
+    fn base_accepts(id: ber::Identifier) -> bool {
+        asn::is_universal(id, 16)
+    }
+    fn base_decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        let mut c = asn::Components::new(e, "FileRead-Response", None)?;
+        let file_data = c.required::<asn::Octets>(
+            Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+            "fileData",
+        )?;
+        let more_follows =
+            c.optional::<asn::Boolean>(Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)))?;
+        c.finish()?;
+        Ok(Self {
+            file_data,
+            more_follows,
+        })
+    }
+    fn base_encode(
+        &self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        w.constructed(implicit.unwrap_or(ber::Identifier::SEQUENCE), |w| {
+            asn::encode::<asn::Octets>(
+                Some(Tag::new(TagClass::Context, 0, Tagging::Implicit)),
+                &self.file_data,
+                w,
+            )?;
+            asn::encode_optional::<asn::Boolean>(
+                Some(Tag::new(TagClass::Context, 1, Tagging::Implicit)),
+                &self.more_follows,
+                w,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+impl asn::Codec for FileReadResponse {
+    type Value = Self;
+    const NAME: &'static str = "FileRead-Response";
+    fn accepts(id: ber::Identifier) -> bool {
+        Self::base_accepts(id)
+    }
+    fn decode(e: &Element<'_>) -> Result<Self, asn::Error> {
+        Self::base_decode(e)
+    }
+    fn encode(
+        value: &Self,
+        w: &mut Writer,
+        implicit: Option<ber::Identifier>,
+    ) -> Result<(), asn::Error> {
+        value.base_encode(w, implicit)
+    }
+}
+
+#[cfg(feature = "proptest")]
+impl crate::strategy::Values for FileReadResponse {
+    fn values(depth: u32) -> proptest::strategy::BoxedStrategy<Self> {
+        let _ = depth;
+        ((
+            crate::strategy::values::<asn::Octets>(depth),
+            proptest::option::of(crate::strategy::values::<asn::Boolean>(depth)),
+        ),)
+            .prop_map(|((file_data, more_follows),)| Self {
+                file_data,
+                more_follows,
+            })
+            .boxed()
     }
 }
 

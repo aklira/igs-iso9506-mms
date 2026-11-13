@@ -18,11 +18,13 @@ use std::time::Duration;
 use igs_iso9506_mms_codec::generated::types::{
     ConfirmedServiceRequest, ConfirmedServiceResponse, DefineNamedVariableListRequest,
     DefineNamedVariableListResponse, DeleteNamedVariableListRequest,
-    DeleteNamedVariableListResponse, GetNameListRequest, GetNameListResponse,
+    DeleteNamedVariableListResponse, FileCloseRequest, FileCloseResponse, FileDeleteRequest,
+    FileDeleteResponse, FileDirectoryRequest, FileDirectoryResponse, FileName, FileOpenRequest,
+    FileOpenResponse, FileReadRequest, FileReadResponse, GetNameListRequest, GetNameListResponse,
     GetNamedVariableListAttributesRequest, GetNamedVariableListAttributesResponse,
     GetVariableAccessAttributesRequest, GetVariableAccessAttributesResponse, IdentifyRequest,
-    IdentifyResponse, ReadJournalRequest, ReadJournalResponse, ReadRequest, ReadResponse,
-    UnconfirmedService, WriteRequest, WriteResponse,
+    IdentifyResponse, Integer32, ReadJournalRequest, ReadJournalResponse, ReadRequest,
+    ReadResponse, UnconfirmedService, Unsigned32, WriteRequest, WriteResponse,
 };
 use igs_iso9506_mms_codec::mms::profile::Profile;
 use igs_iso9506_mms_link::association::Capabilities;
@@ -364,3 +366,63 @@ typed_service!(
     ReadJournalRequest,
     ReadJournalResponse
 );
+typed_service!(
+    /// FileOpen: starts a read of a file at a position, and gives its identifier and attributes (ISO 9506-2 clause 18).
+    file_open,
+    FileOpen,
+    FileOpenRequest,
+    FileOpenResponse
+);
+typed_service!(
+    /// FileRead: the next part of a file that an identifier reads.
+    file_read,
+    FileRead,
+    FileReadRequest,
+    FileReadResponse
+);
+typed_service!(
+    /// FileClose: ends the read of a file that an identifier reads.
+    file_close,
+    FileClose,
+    FileCloseRequest,
+    FileCloseResponse
+);
+typed_service!(
+    /// FileDelete: removes a file.
+    file_delete,
+    FileDelete,
+    FileDeleteRequest,
+    FileDeleteResponse
+);
+typed_service!(
+    /// FileDirectory: the files whose path starts with a file specification, after `continueAfter`.
+    file_directory,
+    FileDirectory,
+    FileDirectoryRequest,
+    FileDirectoryResponse
+);
+
+impl Client {
+    /// GetFile (IEC 61850-8-1 clause 23.2.1): the content of a file, read through FileOpen, FileRead until no more follows, and
+    /// FileClose. `moreFollows` is TRUE when absent (its default, ISO 9506-2 clause 18).
+    pub async fn get_file(&self, path: &[&str]) -> Result<Vec<u8>, Error> {
+        let file_name = FileName(path.iter().map(|part| (*part).to_string()).collect());
+        let opened = self
+            .file_open(FileOpenRequest {
+                file_name,
+                initial_position: Unsigned32(0),
+            })
+            .await?;
+        let frsm = opened.frsm_id;
+        let mut content = Vec::new();
+        loop {
+            let part = self.file_read(FileReadRequest(Integer32(frsm.0))).await?;
+            content.extend_from_slice(&part.file_data);
+            if !part.more_follows.unwrap_or(true) {
+                break;
+            }
+        }
+        self.file_close(FileCloseRequest(Integer32(frsm.0))).await?;
+        Ok(content)
+    }
+}

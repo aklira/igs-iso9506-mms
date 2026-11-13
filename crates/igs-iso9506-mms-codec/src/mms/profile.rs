@@ -26,6 +26,8 @@ pub enum Feature {
     Arrays,
     /// Log services declared: QueryLogByTime or QueryLogAfter (7-2 clause 17.3), which require ReadJournal (8-1 17.3.4).
     Logs,
+    /// File services declared for GetFile or GetFileAttributeValues (8-1 clause 23), which require the file services.
+    Files,
 }
 
 /// What a rule requires of one side.
@@ -62,6 +64,8 @@ pub struct Model {
     pub arrays: bool,
     /// Log services declared (QueryLogByTime or QueryLogAfter), which require ReadJournal (8-1 table 128, c13).
     pub logs: bool,
+    /// File services declared for GetFile or GetFileAttributeValues (8-1 clause 23).
+    pub files: bool,
 }
 
 impl Model {
@@ -71,6 +75,7 @@ impl Model {
             Feature::DataSets => self.data_sets,
             Feature::Arrays => self.arrays,
             Feature::Logs => self.logs,
+            Feature::Files => self.files,
         }
     }
 

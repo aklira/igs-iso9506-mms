@@ -78,6 +78,10 @@ struct Cli {
     #[arg(long, global = true)]
     logs: bool,
 
+    /// For the IEC 61850 profile: file services are declared for GetFile or GetFileAttributeValues (8-1 clause 23).
+    #[arg(long, global = true)]
+    files: bool,
+
     /// Seconds to wait for each answer before a request times out.
     #[arg(long, global = true, value_name = "SECONDS", default_value_t = 30)]
     timeout: u64,
@@ -367,6 +371,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             data_sets: cli.data_sets,
             arrays: cli.arrays,
             logs: cli.logs,
+            files: cli.files,
         }),
     };
     let config = ClientConfig {

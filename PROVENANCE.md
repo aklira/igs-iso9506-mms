@@ -1058,6 +1058,37 @@ silent, to be confirmed by an observation test against other implementations.
 - **Gaps left**: the runtime entries of the application (the server owns the VMD once bound); the journal class in GetNameList (the reference
   client's listing of journals still ends with error 82, G14); the writes of journals (WriteJournal, Initialize, Create, Delete).
 
+### D-049 — File services for the IEC 61850 file class: GetFile, GetFileAttributeValues, DeleteFile (task N8 of igs-iec61850-mms, Q6)
+
+- **Sources**: IEC 61850-8-1 clause 23 (the file class maps to the MMS file object, table 112; GetFile is a sequence of FileOpen,
+  FileRead and FileClose, table 115; GetFileAttributeValues is a FileDirectory with one file specification, table 119; DeleteFile is a
+  FileDelete, table 118; SetFile is an ObtainFile, table 117). The condition of the services is in table 128 (c8: GetFile, c11:
+  GetFileAttributeValues; c9: SetFile). ISO 9506-1 and -2: the file PDUs, which the generator reads from the parsed ASN.1 module
+  `ISO-9506-MMS-1A.asn`, and the file error class (the codes of the `file` error class are in the generated types).
+- **Scope and codegen**: FileOpen (tag 72), FileRead (73), FileClose (74), FileDelete (76) and FileDirectory (77) join the IEC 61850 scope
+  (`xtask/src/main.rs`, as ReadJournal of D-048). ObtainFile (46), needed for SetFile, and FileRename (75) are not in the scope. The
+  profile feature `Files` is named by the text GetFile of the condition (`xtask/src/profile81.rs`). Regenerated: 13 new types (TYPE_COUNT
+  159 to 172), the services of the CHOICE, the profile rules.
+- **Negotiation**: each file request and response is checked against its negotiated service bit (`need_service`), as ReadJournal.
+- **Store**: the virtual file store of the VMD (`vmd/file.rs`): files by path of components, with their size and their last modification
+  (the GeneralizedTime text). `Vmd::add_file` adds one (before the server binds; a runtime change by the application is not served yet).
+- **FRSM**: FileOpen gives a file read state machine an identifier, unique for the VMD (not per association: a decision, to revisit with
+  the association lifetime); the initial position must not be beyond the end (position-invalid); FileRead returns at most 2048 octets and
+  says whether more follows (its default is TRUE when absent, and the client honours it); FileClose ends the read; an identifier that is not
+  open is file-non-existent.
+- **Delete**: refused while an FRSM reads the file (file-busy); a missing file is file-non-existent.
+- **Directory**: FileDirectory lists the files whose path starts with the specification (a file name lists that file, a directory name
+  lists its files), in the order of their paths, after `continueAfter` when it is given; the answer holds them all (moreFollows FALSE).
+  No wildcards.
+- **SetFile**: refused (not served): it needs the ObtainFile service, which fetches a file from another peer. This is a gap, not a guess.
+- **Client**: the typed services `file_open`, `file_read`, `file_close`, `file_delete`, `file_directory`, and `get_file` (the sequence of
+  GetFile, reading until no more follows, then closing).
+- **Confidence**: high for the PDU types and the tables; medium for the FRSM identifiers being unique for the VMD (the standard speaks of the
+  file read state machine per association, which the server could keep).
+- **Tests**: `tests/files.rs` (five tests through a client and a server with the IEC profile that declares the file services): a multi-part
+  GetFile, the directory with its order and its continuation, the attributes of a file, a missing and a deleted file, and, on the store, the
+  refusal to delete a file being read and a position beyond the end.
+
 ## Third-party code and sources
 
 | Source | Licence | Use | Provenance |

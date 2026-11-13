@@ -110,14 +110,25 @@ fn run(check: bool) -> Result<(), Fail> {
     // ReadJournal is required by the IEC 61850 profile once the log services are declared (8-1 table 128, condition c13 of
     // readJournal: "Shall be 'm' if support for the ACSI QueryLogByTime or QueryLogAfter is declared"). TASE.2 does not require it, so
     // it is added with its own scope: its types are generated, and the TASE.2 tables are unchanged.
-    conformance.mms_services.push(data::ProfileService {
-        name: "ReadJournal".to_string(),
-        scope: "iec61850".to_string(),
-        tag: Some(65),
-        family: Some("confirmed".to_string()),
-        client: data::Status::default(),
-        server: data::Status::default(),
-    });
+    // The file services of GetFile (open, read, close), DeleteFile (delete) and GetFileAttributeValues (directory) (8-1 clause 23;
+    // N8). SetFile needs ObtainFile, which is not served; its tag is not in the scope.
+    for (name, tag) in [
+        ("ReadJournal", 65),
+        ("fileOpen", 72),
+        ("fileRead", 73),
+        ("fileClose", 74),
+        ("fileDelete", 76),
+        ("fileDirectory", 77),
+    ] {
+        conformance.mms_services.push(data::ProfileService {
+            name: name.to_string(),
+            scope: "iec61850".to_string(),
+            tag: Some(tag),
+            family: Some("confirmed".to_string()),
+            client: data::Status::default(),
+            server: data::Status::default(),
+        });
+    }
     let profile81: profile81::Conformance81 =
         serde_saphyr::from_str(&read(&root.join("docs/spec/8-1/data/conformance_81.yaml"))?)?;
 
