@@ -6,6 +6,7 @@
 //! identifies it, lists the names of its objects, reads and writes variables, and shows their types.
 //! With `--trace`, the decoded PDUs and the connection events are printed on standard error.
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -13,10 +14,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 use igs_iso9506_mms::client::in_scope_capabilities;
 use igs_iso9506_mms::{Client, ClientConfig, ConnectionState, Event, Events, Reconnect};
 use igs_iso9506_mms_codec::generated::types::{
-    AccessResult, GetNameListRequest, GetNameListRequestObjectScope,
-    GetVariableAccessAttributesRequest, ObjectClass, ObjectClassBasicObjectClass, ReadRequest,
-    VariableAccessSpecification, VariableAccessSpecificationListOfVariableItem,
-    VariableSpecification, WriteRequest, WriteResponseItemItem,
+    AccessResult, FileDeleteRequest, FileDirectoryRequest, FileName, GetNameListRequest,
+    GetNameListRequestObjectScope, GetVariableAccessAttributesRequest, ObjectClass,
+    ObjectClassBasicObjectClass, ReadRequest, VariableAccessSpecification,
+    VariableAccessSpecificationListOfVariableItem, VariableSpecification, WriteRequest,
+    WriteResponseItemItem,
 };
 use igs_iso9506_mms_codec::mms::profile::{Model, Profile};
 use igs_iso9506_mms_codec::mms::{Data, Identifier, ObjectName, ObjectNameDomainSpecific};
@@ -117,6 +119,29 @@ enum Command {
         domain: Option<String>,
     },
 
+    /// List the files of the server (FileDirectory), every page; each file is printed with its parts separated by `/`.
+    Files {
+        /// The file specification: the leading parts of the names to list. All files when absent.
+        #[arg(long, value_name = "PATH")]
+        path: Option<String>,
+    },
+
+    /// Read a file (GetFile: FileOpen, FileRead and FileClose), and print its content or write it to a file.
+    Get {
+        /// The name of the file, its parts separated by `/`.
+        path: String,
+
+        /// Write the content to this file instead of standard output.
+        #[arg(long, value_name = "FILE")]
+        out: Option<PathBuf>,
+    },
+
+    /// Delete a file (FileDelete).
+    Delete {
+        /// The name of the file, its parts separated by `/`.
+        path: String,
+    },
+
     /// Write a value to a variable.
     Write {
         /// The name of the variable.
@@ -212,6 +237,16 @@ fn one_variable(name: &str, domain: Option<&str>) -> VariableAccessSpecification
 }
 
 /// The scope of a name list: the domain's names, or the server's own.
+/// A file name from its parts separated by `/`; empty parts are dropped.
+fn file_name(text: &str) -> FileName {
+    FileName(
+        text.split('/')
+            .filter(|part| !part.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
 fn scope(domain: Option<&str>) -> GetNameListRequestObjectScope {
     match domain {
         Some(domain) => {
@@ -292,6 +327,45 @@ async fn execute(client: &Client, command: Command) -> Result<(), Box<dyn std::e
                     _ => break,
                 }
             }
+        }
+        Command::Files { path } => {
+            let specification = path.as_deref().map(file_name);
+            let mut after: Option<FileName> = None;
+            loop {
+                let page = client
+                    .file_directory(FileDirectoryRequest {
+                        file_specification: specification.clone(),
+                        continue_after: after.clone(),
+                    })
+                    .await?;
+                for entry in &page.list_of_directory_entry {
+                    println!("{}", entry.file_name.0.join("/"));
+                }
+                // moreFollows is TRUE when absent (ISO 9506-2, FileDirectory-Response).
+                let more = page.more_follows.unwrap_or(true);
+                match page.list_of_directory_entry.last() {
+                    Some(last) if more => after = Some(last.file_name.clone()),
+                    _ => break,
+                }
+            }
+        }
+        Command::Get { path, out } => {
+            let parts = file_name(&path);
+            let borrowed: Vec<&str> = parts.0.iter().map(String::as_str).collect();
+            let content = client.get_file(&borrowed).await?;
+            match out {
+                Some(file) => std::fs::write(file, &content)?,
+                None => {
+                    use std::io::Write;
+                    std::io::stdout().write_all(&content)?;
+                }
+            }
+        }
+        Command::Delete { path } => {
+            client
+                .file_delete(FileDeleteRequest(file_name(&path)))
+                .await?;
+            println!("deleted: {path}");
         }
         Command::Read { name, domain } => {
             let response = client
