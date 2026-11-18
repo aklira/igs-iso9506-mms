@@ -190,6 +190,8 @@ enum Class {
     NamedType,
     /// Domains: the first level of the server's objects.
     Domain,
+    /// Journals: the journals of a domain (the logs of the IEC 61850 profile; give the domain with --domain).
+    Journal,
 }
 
 impl Class {
@@ -199,6 +201,7 @@ impl Class {
             Self::NamedVariableList => ObjectClassBasicObjectClass::NAMED_VARIABLE_LIST,
             Self::NamedType => ObjectClassBasicObjectClass::NAMED_TYPE,
             Self::Domain => ObjectClassBasicObjectClass::DOMAIN,
+            Self::Journal => ObjectClassBasicObjectClass::JOURNAL,
         };
         ObjectClass::BasicObjectClass(code)
     }

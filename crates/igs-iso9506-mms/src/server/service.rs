@@ -142,6 +142,8 @@ fn class_of(class: &ObjectClass) -> Result<Class, ModelError> {
         Ok(Class::NamedVariableList)
     } else if *number == ObjectClassBasicObjectClass::DOMAIN.0 {
         Ok(Class::Domain)
+    } else if *number == ObjectClassBasicObjectClass::JOURNAL.0 {
+        Ok(Class::Journal)
     } else {
         Err(ModelError::Unsupported)
     }

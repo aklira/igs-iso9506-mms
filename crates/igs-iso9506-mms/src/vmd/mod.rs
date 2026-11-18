@@ -43,6 +43,8 @@ pub enum Class {
     NamedVariableList,
     /// Domain objects, which exist at the VMD scope only.
     Domain,
+    /// Journal objects, which exist in a domain (ISO 9506-2 §8, the journal class; 8-1 §17.3.3.3.2).
+    Journal,
 }
 
 /// The answers of the Identify service (ISO 9506-2 §7.1): the vendor, the model and the revision.
@@ -333,6 +335,13 @@ impl Vmd {
             (Class::Domain, Scope::Domain(_)) => return Err(Error::Unsupported),
             (Class::NamedVariable, scope) => self.variables_of(scope)?.keys().cloned().collect(),
             (Class::NamedVariableList, scope) => self.lists_of(scope)?.keys().cloned().collect(),
+            // Journals are held in domains: the VMD scope holds none, and the scope of a domain lists its own.
+            (Class::Journal, Scope::Vmd) => return Err(Error::Unsupported),
+            (Class::Journal, Scope::Domain(domain)) => self
+                .domains
+                .get(domain)
+                .map(|domain| domain.journals.keys().cloned().collect())
+                .ok_or(Error::NonExistent)?,
         };
         let after_names = names.iter().filter(|name| after.is_none_or(|a| *name > a));
         let page: Vec<Name> = after_names.clone().take(limit).cloned().collect();
@@ -520,6 +529,28 @@ mod tests {
             .unwrap();
         assert_eq!(second.names, vec![name("c"), name("d")]);
         assert!(!second.more_follows);
+    }
+
+    #[test]
+    fn the_journals_are_listed_in_their_domain_only() {
+        let mut model = vmd();
+        model.add_domain(name("LD1")).unwrap();
+        model
+            .define_journal(&Target::in_domain(name("LD1"), name("LLN0$C1")), 4)
+            .unwrap();
+        let page = model
+            .page(Class::Journal, &Scope::Domain(name("LD1")), None, 10)
+            .unwrap();
+        assert_eq!(page.names, vec![name("LLN0$C1")]);
+        assert_eq!(
+            model.page(Class::Journal, &Scope::Vmd, None, 10),
+            Err(Error::Unsupported),
+            "a journal is held in a domain, not at the VMD scope"
+        );
+        assert_eq!(
+            model.page(Class::Journal, &Scope::Domain(name("missing")), None, 10),
+            Err(Error::NonExistent)
+        );
     }
 
     #[test]
