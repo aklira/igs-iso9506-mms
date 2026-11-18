@@ -62,16 +62,29 @@ fn error_and_reject_tables() {
 
 #[test]
 fn scope_of_the_profile() {
-    let in_scope: Vec<&str> = SERVICES
-        .iter()
-        .filter(|s| s.in_scope)
-        .map(|s| s.name)
-        .collect();
-    // Nine services of TASE.2, readJournal of the IEC 61850 log services (D-048), and the five file services (D-049).
-    assert_eq!(in_scope.len(), 15);
-    assert!(in_scope.contains(&"read"));
-    assert!(in_scope.contains(&"readJournal"));
-    assert!(in_scope.contains(&"informationReport"));
+    let names = |select: fn(&igs_iso9506_mms_codec::schema::Service) -> bool| -> Vec<&'static str> {
+        SERVICES
+            .iter()
+            .filter(|s| select(s))
+            .map(|s| s.name)
+            .collect()
+    };
+    // The TASE.2 profile: nine services. The IEC 61850 profile adds readJournal of the log services (D-048) and the
+    // five file services (D-049): fifteen.
+    let tase2 = names(|s| s.in_scope);
+    let iec61850 = names(|s| s.in_scope_iec61850);
+    assert_eq!(tase2.len(), 9);
+    assert_eq!(iec61850.len(), 15);
+    assert!(tase2.contains(&"read") && tase2.contains(&"informationReport"));
+    assert!(
+        !tase2.contains(&"readJournal"),
+        "TASE.2 does not declare the log services"
+    );
+    assert!(
+        !tase2.contains(&"fileOpen"),
+        "TASE.2 does not declare the file services"
+    );
+    assert!(iec61850.contains(&"readJournal") && iec61850.contains(&"fileOpen"));
     assert_eq!(PDU_REQUIREMENTS.len(), 10);
     assert_eq!(PDU_REQUIREMENTS.iter().filter(|p| p.in_scope).count(), 7);
     assert_eq!(service("getNameList").client, "o");

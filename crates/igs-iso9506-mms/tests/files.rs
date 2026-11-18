@@ -14,7 +14,7 @@
 
 use std::time::Duration;
 
-use igs_iso9506_mms::client::{in_scope_capabilities, Client, ClientConfig, Reconnect};
+use igs_iso9506_mms::client::{in_scope_capabilities_iec61850, Client, ClientConfig, Reconnect};
 use igs_iso9506_mms::server::{Server, ServerConfig};
 use igs_iso9506_mms::vmd::{Identity, Vmd};
 use igs_iso9506_mms_codec::generated::types::{FileDirectoryRequest, FileName};
@@ -60,7 +60,7 @@ fn files_profile() -> Profile {
 async fn connected() -> (Server, Client) {
     let server_config = ServerConfig {
         profile: files_profile(),
-        ..ServerConfig::new(LinkConfig::default())
+        ..ServerConfig::new(LinkConfig::default()).with_iec61850_services()
     };
     let server = Server::bind("127.0.0.1:0", server_config, vmd())
         .await
@@ -69,7 +69,7 @@ async fn connected() -> (Server, Client) {
     let config = ClientConfig {
         reconnect: Reconnect::Never,
         profile: files_profile(),
-        ..ClientConfig::new(LinkConfig::default(), in_scope_capabilities())
+        ..ClientConfig::new(LinkConfig::default(), in_scope_capabilities_iec61850())
     };
     let (client, _events) = timeout(ANSWER, Client::connect(&address, config))
         .await

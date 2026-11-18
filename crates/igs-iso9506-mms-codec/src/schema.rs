@@ -162,8 +162,10 @@ pub struct Service {
     pub bit: Bit,
     /// Other CBBs needed: every group must hold, through one of its names.
     pub requires: &'static [&'static [&'static str]],
-    /// Whether the profile requires it.
+    /// Whether the ISO 9506 profile of TASE.2 requires it (the rows of scope `required`): the services it advertises.
     pub in_scope: bool,
+    /// Whether the IEC 61850 profile requires it too (the rows of scope `required` or `iec61850`): the services it advertises.
+    pub in_scope_iec61850: bool,
     /// Status for a client, as printed in the profile.
     pub client: &'static str,
     /// Status for a server, as printed in the profile.

@@ -1573,18 +1573,23 @@ pub fn tables_txt(
             .find(|c| c.tag == Some(s.tag) && c.family.as_deref() == Some(s.family.as_str()));
         // A service that the IEC 61850 scope requires (ReadJournal, see main) is executed by this library, so it is in scope too; the
         // TASE.2 row of the same service is listed first, so every row of the tag is looked at.
-        let in_scope = conformance.mms_services.iter().any(|r| {
-            r.tag == Some(s.tag)
-                && r.family.as_deref() == Some(s.family.as_str())
-                && (r.scope == "required" || r.scope == "iec61850")
-        });
+        // The TASE.2 profile advertises the rows of scope `required` only; the IEC 61850 profile adds the rows of scope `iec61850`.
+        let scoped = |wanted: &dyn Fn(&str) -> bool| {
+            conformance.mms_services.iter().any(|r| {
+                r.tag == Some(s.tag)
+                    && r.family.as_deref() == Some(s.family.as_str())
+                    && wanted(r.scope.as_str())
+            })
+        };
+        let in_scope = scoped(&|scope| scope == "required");
+        let in_scope_iec61850 = scoped(&|scope| scope == "required" || scope == "iec61850");
         let (client, server) = row.map_or((String::new(), String::new()), |r| {
             (status(&r.client), status(&r.server))
         });
         let groups: Vec<String> = s.requires.iter().map(|g| format!("&{g:?}")).collect();
         writeln!(
             o,
-            "Service {{ name: {:?}, family: {family}, tag: {}, cbb: {:?}, bit: Bit {{ option: {}, position: {} }}, requires: &[{}], in_scope: {in_scope}, client: {client:?}, server: {server:?} }},",
+            "Service {{ name: {:?}, family: {family}, tag: {}, cbb: {:?}, bit: Bit {{ option: {}, position: {} }}, requires: &[{}], in_scope: {in_scope}, in_scope_iec61850: {in_scope_iec61850}, client: {client:?}, server: {server:?} }},",
             s.name, s.tag, s.cbb, option(&s.bit.option), s.bit.position, groups.join(", ")
         )?;
     }

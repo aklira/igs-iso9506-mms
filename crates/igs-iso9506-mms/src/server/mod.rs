@@ -110,6 +110,13 @@ impl ServerConfig {
         self
     }
 
+    /// The services of the IEC 61850 profile instead of those of the ISO 9506 profile of TASE.2: the file services and
+    /// ReadJournal are advertised, as the profile requires them (see [`crate::client::in_scope_capabilities_iec61850`]).
+    pub fn with_iec61850_services(mut self) -> Self {
+        self.capabilities.services = crate::client::in_scope_capabilities_iec61850().services;
+        self
+    }
+
     /// Serves alternate access (task N4): the `valt` CBB is negotiated, so the requests that carry an
     /// alternate access reach the model, which reads their paths with [`access::steps`]. The generic VMD
     /// still refuses them, item by item.

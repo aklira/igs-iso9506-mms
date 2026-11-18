@@ -162,9 +162,24 @@ pub(crate) enum Command {
     },
 }
 
-/// The parameter CBBs and the services in scope of the profile: every parameter CBB of the table, and
-/// every service whose `in_scope` flag is set, with the unconfirmed information report.
+/// The parameter CBBs and the services in scope of the ISO 9506 profile of TASE.2: every parameter CBB of the table, and
+/// every service whose `in_scope` flag is set (the rows of scope `required`), with the unconfirmed information report.
+///
+/// The IEC 61850 profile declares more services (ReadJournal and the file services); its capabilities are
+/// [`in_scope_capabilities_iec61850`]. A client or a server advertises the set of its profile only: a service that
+/// the profile does not declare is not claimed.
 pub fn in_scope_capabilities() -> Capabilities {
+    capabilities(|service| service.in_scope)
+}
+
+/// The parameter CBBs and the services in scope of the IEC 61850 profile: the services of [`in_scope_capabilities`]
+/// and the services that the IEC 61850 scope requires (ReadJournal, the file services).
+pub fn in_scope_capabilities_iec61850() -> Capabilities {
+    capabilities(|service| service.in_scope_iec61850)
+}
+
+/// The capabilities of a profile: every parameter CBB of the table, and the services that the profile selects.
+fn capabilities(selects: impl Fn(&igs_iso9506_mms_codec::schema::Service) -> bool) -> Capabilities {
     use igs_iso9506_mms_codec::generated::tables::{PARAMETER_SUPPORT_OPTIONS, SERVICES};
     Capabilities {
         parameter_cbb: bit_string(
@@ -175,7 +190,7 @@ pub fn in_scope_capabilities() -> Capabilities {
         services: bit_string(
             SERVICES
                 .iter()
-                .filter(|service| service.in_scope)
+                .filter(|service| selects(service))
                 .filter_map(|service| usize::try_from(service.bit.position).ok()),
         ),
     }
